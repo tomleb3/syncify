@@ -49,6 +49,9 @@ dmypy.json
 *.pem
 *.key
 
+# Syncify — keep your personal config private
+syncify.config.yml
+
 # Testing
 .pytest_cache/
 .coverage
