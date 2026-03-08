@@ -23,9 +23,17 @@ jobs:
 
       - name: Run Syncify
         env:
-          # Set these two in: Settings → Secrets and variables → Actions → Secrets
+          # Required — set in: Settings → Secrets and variables → Actions → Secrets
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
-          # Optional: enables Telegram success/failure notifications.
+
+          # Optional config — set in: Settings → Secrets and variables → Actions → Variables
+          # If not set, the script uses syncify.config.yml (if it exists) or defaults.
+          SPOTIFY_USER_ID: ${{ vars.SPOTIFY_USER_ID }}
+          SPOTIFY_SOURCE_PLAYLISTS: ${{ vars.SPOTIFY_SOURCE_PLAYLISTS }}
+          SPOTIFY_TARGET_PLAYLIST: ${{ vars.SPOTIFY_TARGET_PLAYLIST }}
+          SPOTIFY_INCLUDE_EXTERNAL: ${{ vars.SPOTIFY_INCLUDE_EXTERNAL }}
+
+          # Optional — enables Telegram notifications
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: uv run python syncify.py
