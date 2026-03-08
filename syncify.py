@@ -7,9 +7,18 @@ BASE_URL = 'https://api.spotify.com'
 
 def _load_config() -> dict:
     config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'syncify.config.yml')
+    example_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'syncify.config.yml.example')
+    
+    # Try syncify.config.yml first (personal, gitignored).
     if os.path.exists(config_path):
         with open(config_path) as f:
             return yaml.safe_load(f) or {}
+    
+    # Fall back to example if no personal config exists.
+    if os.path.exists(example_path):
+        with open(example_path) as f:
+            return yaml.safe_load(f) or {}
+    
     return {}
 
 
