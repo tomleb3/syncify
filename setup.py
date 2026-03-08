@@ -1,7 +1,8 @@
 """
 Interactive setup for Syncify.
-Run once locally to generate syncify.config.yml.
-Requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to be set in the environment.
+Fetches your Spotify playlists, lets you pick which ones to sync,
+and pushes everything to GitHub Secrets/Variables.
+Requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET in the environment.
 """
 
 import os
@@ -9,7 +10,6 @@ import re
 import subprocess
 import sys
 import requests
-import yaml
 
 BASE_URL = 'https://api.spotify.com'
 
@@ -135,20 +135,6 @@ def main() -> None:
 
     target_playlist = prompt('\nName for the target (merged) playlist', 'Syncified')
 
-    config = {
-        'user_id': user_id,
-        'target_playlist': target_playlist,
-        'source_playlists': selected_names if selected_names != playlist_names else [],
-        'include_external': include_external,
-    }
-
-    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'syncify.config.yml')
-    with open(config_path, 'w') as f:
-        yaml.dump(config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-
-    print(f'\n✅ Config saved to {config_path}')
-    print('   (This file is in .gitignore — your config stays private.)\n')
-
     # ── GitHub push ───────────────────────────────────────────────────────────
     detected_repo = _detect_gh_repo()
     repo = prompt('GitHub repo to push secrets/variables to (owner/repo)', detected_repo)
@@ -171,12 +157,6 @@ def main() -> None:
                 }.items() if v  # skip empty/default values
             },
         )
-        # Store repo in config for bot use.
-        with open(config_path) as f:
-            saved = yaml.safe_load(f) or {}
-        saved['github'] = {'repo': repo}
-        with open(config_path, 'w') as f:
-            yaml.dump(saved, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
     else:
         print('Skipping GitHub push.')
 

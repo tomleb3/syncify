@@ -11,16 +11,16 @@ Commands:
 
 import logging
 import os
+import re
+import subprocess
 
 import requests
-import yaml
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 from syncify import (
     TARGET_PLAYLIST_NAME,
     USER_ID,
-    _config,
     get_access_token,
     get_playlists,
     on_select_playlists,
@@ -31,11 +31,8 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'syncify.config.yml')
-
 BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
-# Falls back to 0 when not yet configured — /start will print the ID needed.
-_ALLOWED_CHAT_ID = int(os.environ.get('TELEGRAM_CHAT_ID') or _config.get('telegram', {}).get('chat_id') or 0)
+_ALLOWED_CHAT_ID = int(os.environ.get('TELEGRAM_CHAT_ID') or 0)
 
 # Per-chat state: {chat_id: {'playlists': [...], 'selected': set[str]}}
 _state: dict[int, dict] = {}
@@ -67,21 +64,28 @@ def _build_keyboard(playlists: list[dict], selected: set[str]) -> InlineKeyboard
 
 
 def _save_selection(source_playlists: list[str]) -> None:
-    if os.path.exists(_CONFIG_PATH):
-        with open(_CONFIG_PATH) as f:
-            config = yaml.safe_load(f) or {}
-    else:
-        config = {}
-    config['source_playlists'] = source_playlists
-    with open(_CONFIG_PATH, 'w') as f:
-        yaml.dump(config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
     _push_gh_variable('SPOTIFY_SOURCE_PLAYLISTS', ','.join(source_playlists))
+
+
+def _detect_gh_repo() -> str:
+    """Detect owner/repo from git remote origin URL."""
+    try:
+        result = subprocess.run(
+            ['git', 'remote', 'get-url', 'origin'],
+            capture_output=True, text=True, check=True,
+        )
+        m = re.search(r'github\.com[:/](.+?/[^/]+?)(?:\.git)?$', result.stdout.strip())
+        if m:
+            return m.group(1)
+    except subprocess.CalledProcessError:
+        pass
+    return ''
 
 
 def _push_gh_variable(name: str, value: str) -> None:
     """Update a GitHub Actions Variable via REST API so the next cron run picks it up."""
     token = os.environ.get('GITHUB_TOKEN')
-    repo = _config.get('github', {}).get('repo')
+    repo = os.environ.get('GITHUB_REPO') or _detect_gh_repo()
     if not token or not repo:
         return
     try:
@@ -113,8 +117,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     if not _is_authorized(update):
         await update.message.reply_text(
-            f'Your chat ID is `{chat_id}`.\n'
-            'Add it to `syncify.config.yml` under `telegram.chat_id` to authorize this chat.',
+            f'Your chat ID is `{chat_id}`.\n\n'
+            'To authorize this chat, restart the bot with:\n'
+            f'`TELEGRAM_CHAT_ID={chat_id} make bot`\n\n'
+            'For cron notifications, add `TELEGRAM_CHAT_ID` as a '
+            'GitHub Variable in your repo settings.',
             parse_mode='Markdown',
         )
         return
@@ -135,7 +142,7 @@ async def cmd_playlists(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     try:
         token = _spotify_token()
-        include_external = _config.get('include_external', False)
+        include_external = os.environ.get('SPOTIFY_INCLUDE_EXTERNAL', '').lower() == 'true'
         playlists = get_playlists(USER_ID, include_external, token)
     except Exception as e:
         await msg.edit_text(f'❌ Failed to fetch playlists: {e}')
@@ -146,7 +153,11 @@ async def cmd_playlists(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     chat_id = update.effective_chat.id
-    configured = set(_config.get('source_playlists') or [p['name'] for p in playlists])
+    source_env = os.environ.get('SPOTIFY_SOURCE_PLAYLISTS', '')
+    if source_env:
+        configured = set(name.strip() for name in source_env.split(','))
+    else:
+        configured = set(p['name'] for p in playlists)
     _state[chat_id] = {'playlists': playlists, 'selected': configured}
 
     await msg.edit_text(
@@ -164,9 +175,13 @@ async def cmd_sync(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     try:
         token = _spotify_token()
-        include_external = _config.get('include_external', False)
+        include_external = os.environ.get('SPOTIFY_INCLUDE_EXTERNAL', '').lower() == 'true'
         all_playlists = get_playlists(USER_ID, include_external, token)
-        source_names = set(_config.get('source_playlists') or [p['name'] for p in all_playlists])
+        source_env = os.environ.get('SPOTIFY_SOURCE_PLAYLISTS', '')
+        if source_env:
+            source_names = set(name.strip() for name in source_env.split(','))
+        else:
+            source_names = set(p['name'] for p in all_playlists)
         selected = [p for p in all_playlists if p['name'] in source_names]
         count = on_select_playlists(USER_ID, selected, token)
         await msg.edit_text(

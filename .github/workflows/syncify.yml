@@ -28,7 +28,6 @@ jobs:
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
 
           # Optional config — set in: Settings → Secrets and variables → Actions → Variables
-          # If not set, the script uses syncify.config.yml (if it exists) or defaults.
           SPOTIFY_USER_ID: ${{ vars.SPOTIFY_USER_ID }}
           SPOTIFY_SOURCE_PLAYLISTS: ${{ vars.SPOTIFY_SOURCE_PLAYLISTS }}
           SPOTIFY_TARGET_PLAYLIST: ${{ vars.SPOTIFY_TARGET_PLAYLIST }}
@@ -36,4 +35,5 @@ jobs:
 
           # Optional — enables Telegram notifications
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
         run: uv run python syncify.py

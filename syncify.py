@@ -1,31 +1,10 @@
 import os
-import yaml
 import requests
 
 BASE_URL = 'https://api.spotify.com'
 
-
-def _load_config() -> dict:
-    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'syncify.config.yml')
-    example_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'syncify.config.yml.example')
-
-    # Try syncify.config.yml first (personal, gitignored).
-    if os.path.exists(config_path):
-        with open(config_path) as f:
-            return yaml.safe_load(f) or {}
-
-    # Fall back to example if no personal config exists.
-    if os.path.exists(example_path):
-        with open(example_path) as f:
-            return yaml.safe_load(f) or {}
-
-    return {}
-
-
-_config = _load_config()
-
-USER_ID = os.environ.get('SPOTIFY_USER_ID') or _config.get('user_id', '')
-TARGET_PLAYLIST_NAME = os.environ.get('SPOTIFY_TARGET_PLAYLIST') or _config.get('target_playlist', 'Syncified')
+USER_ID = os.environ.get('SPOTIFY_USER_ID', '')
+TARGET_PLAYLIST_NAME = os.environ.get('SPOTIFY_TARGET_PLAYLIST', 'Syncified')
 
 
 def get_access_token(client_id: str, client_secret: str) -> str:
@@ -172,7 +151,7 @@ def on_select_playlists(user_id: str, selected_playlists: list[dict], access_tok
 
 def _notify_telegram(message: str) -> None:
     token = os.environ.get('TELEGRAM_BOT_TOKEN')
-    chat_id = _config.get('telegram', {}).get('chat_id')
+    chat_id = os.environ.get('TELEGRAM_CHAT_ID')
     if not token or not chat_id:
         return
     try:
@@ -187,25 +166,15 @@ def _notify_telegram(message: str) -> None:
 def main() -> None:
     client_id = os.environ['SPOTIFY_CLIENT_ID']
     client_secret = os.environ['SPOTIFY_CLIENT_SECRET']
-
-    include_external_env = os.environ.get('SPOTIFY_INCLUDE_EXTERNAL')
-    include_external = (
-        include_external_env.lower() == 'true'
-        if include_external_env is not None
-        else _config.get('include_external', False)
-    )
-
-    source_playlists_env = os.environ.get('SPOTIFY_SOURCE_PLAYLISTS')
-    source_names_config: list[str] = _config.get('source_playlists', [])
+    include_external = os.environ.get('SPOTIFY_INCLUDE_EXTERNAL', '').lower() == 'true'
 
     access_token = get_access_token(client_id, client_secret)
     all_playlists = get_playlists(USER_ID, include_external, access_token)
 
+    source_playlists_env = os.environ.get('SPOTIFY_SOURCE_PLAYLISTS', '')
     if source_playlists_env:
         source_names = {name.strip() for name in source_playlists_env.split(',')}
         selected_playlists = [p for p in all_playlists if p['name'] in source_names]
-    elif source_names_config:
-        selected_playlists = [p for p in all_playlists if p['name'] in set(source_names_config)]
     else:
         selected_playlists = all_playlists
 
