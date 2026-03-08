@@ -214,7 +214,7 @@ The Telegram bot lets you manage playlist selection interactively and receive a 
 
 ---
 
-
+## Local usage
 
 ```bash
 make init
