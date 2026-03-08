@@ -67,8 +67,11 @@ def _build_keyboard(playlists: list[dict], selected: set[str]) -> InlineKeyboard
 
 
 def _save_selection(source_playlists: list[str]) -> None:
-    with open(_CONFIG_PATH) as f:
-        config = yaml.safe_load(f) or {}
+    if os.path.exists(_CONFIG_PATH):
+        with open(_CONFIG_PATH) as f:
+            config = yaml.safe_load(f) or {}
+    else:
+        config = {}
     config['source_playlists'] = source_playlists
     with open(_CONFIG_PATH, 'w') as f:
         yaml.dump(config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
