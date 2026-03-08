@@ -12,6 +12,7 @@ Commands:
 import logging
 import os
 
+import requests
 import yaml
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
@@ -71,6 +72,32 @@ def _save_selection(source_playlists: list[str]) -> None:
     config['source_playlists'] = source_playlists
     with open(_CONFIG_PATH, 'w') as f:
         yaml.dump(config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    _push_gh_variable('SPOTIFY_SOURCE_PLAYLISTS', ','.join(source_playlists))
+
+
+def _push_gh_variable(name: str, value: str) -> None:
+    """Update a GitHub Actions Variable via REST API so the next cron run picks it up."""
+    token = os.environ.get('GITHUB_TOKEN')
+    repo = _config.get('github', {}).get('repo')
+    if not token or not repo:
+        return
+    try:
+        # Try PATCH (update existing), fall back to POST (create new).
+        url = f'https://api.github.com/repos/{repo}/actions/variables/{name}'
+        headers = {'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json'}
+        resp = requests.patch(url, json={'name': name, 'value': value}, headers=headers, timeout=10)
+        if resp.status_code == 404:
+            requests.post(
+                f'https://api.github.com/repos/{repo}/actions/variables',
+                json={'name': name, 'value': value},
+                headers=headers,
+                timeout=10,
+            ).raise_for_status()
+        else:
+            resp.raise_for_status()
+        logging.info('Pushed %s to GitHub Variable.', name)
+    except Exception as e:
+        logging.warning('Failed to push %s to GitHub: %s', name, e)
 
 
 def _spotify_token() -> str:
