@@ -8,17 +8,17 @@ BASE_URL = 'https://api.spotify.com'
 def _load_config() -> dict:
     config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'syncify.config.yml')
     example_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'syncify.config.yml.example')
-    
+
     # Try syncify.config.yml first (personal, gitignored).
     if os.path.exists(config_path):
         with open(config_path) as f:
             return yaml.safe_load(f) or {}
-    
+
     # Fall back to example if no personal config exists.
     if os.path.exists(example_path):
         with open(example_path) as f:
             return yaml.safe_load(f) or {}
-    
+
     return {}
 
 
@@ -48,12 +48,18 @@ def get_access_token(client_id: str, client_secret: str) -> str:
 # `include_external` = playlists not owned by the user.
 def get_playlists(user_id: str, include_external: bool, access_token: str) -> list[dict]:
     """Fetches the user's playlists from Spotify API."""
+    items: list[dict] = []
+    url: str | None = f'{BASE_URL}/v1/users/{user_id}/playlists?limit=50'
     try:
-        response = requests.get(
-            f'{BASE_URL}/v1/users/{user_id}/playlists',
-            headers={'Authorization': f'Bearer {access_token}'},
-        )
-        items = response.json().get('items', [])
+        while url:
+            response = requests.get(
+                url,
+                headers={'Authorization': f'Bearer {access_token}'},
+            )
+            response.raise_for_status()
+            data = response.json()
+            items.extend(data.get('items', []))
+            url = data.get('next')
     except Exception as e:
         print(f"Error fetching playlists: {e}")
         return []
@@ -77,14 +83,20 @@ def get_playlist_by_name(user_id:str, playlist_name: str, access_token: str) -> 
 
 
 def get_playlist_tracks(playlist_id: str, access_token: str) -> list[dict]:
-    """Fetches the tracks of a given playlist."""
+    """Fetches all tracks of a given playlist, handling pagination."""
+    items: list[dict] = []
+    url: str | None = f'{BASE_URL}/v1/playlists/{playlist_id}/tracks?limit=100'
     try:
-        response = requests.get(
-            f'{BASE_URL}/v1/playlists/{playlist_id}/tracks',
-            headers={'Authorization': f'Bearer {access_token}'},
-        )
-        response.raise_for_status()
-        return response.json().get('items', [])
+        while url:
+            response = requests.get(
+                url,
+                headers={'Authorization': f'Bearer {access_token}'},
+            )
+            response.raise_for_status()
+            data = response.json()
+            items.extend(data.get('items', []))
+            url = data.get('next')
+        return items
     except Exception as e:
         print(f"Error fetching playlist tracks: {e}")
         return []
@@ -96,7 +108,6 @@ def get_or_create_playlist(user_id: str, playlist_name: str, access_token: str) 
 
     if target_playlist:
         return target_playlist
-
 
     try:
         response = requests.post(
