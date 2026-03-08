@@ -107,6 +107,40 @@ def _push_gh_variable(name: str, value: str) -> None:
         logging.warning('Failed to push %s to GitHub: %s', name, e)
 
 
+def _push_gh_secret(name: str, value: str) -> None:
+    """Update a GitHub Actions Secret via REST API."""
+    import base64
+    import json
+    gh_token = os.environ.get('GITHUB_TOKEN')
+    repo = os.environ.get('GITHUB_REPO') or _detect_gh_repo()
+    if not gh_token or not repo:
+        return
+    try:
+        headers = {'Authorization': f'Bearer {gh_token}', 'Accept': 'application/vnd.github+json'}
+        # Fetch the repo's public key for secret encryption.
+        key_resp = requests.get(
+            f'https://api.github.com/repos/{repo}/actions/secrets/public-key',
+            headers=headers, timeout=10,
+        )
+        key_resp.raise_for_status()
+        key_data = key_resp.json()
+        # Encrypt using libsodium (PyNaCl).
+        from nacl.encoding import Base64Encoder
+        from nacl.public import PublicKey, SealedBox
+        public_key = PublicKey(key_data['key'].encode(), encoder=Base64Encoder)
+        encrypted = SealedBox(public_key).encrypt(value.encode())
+        encrypted_b64 = base64.b64encode(encrypted).decode()
+        requests.put(
+            f'https://api.github.com/repos/{repo}/actions/secrets/{name}',
+            headers=headers,
+            json={'encrypted_value': encrypted_b64, 'key_id': key_data['key_id']},
+            timeout=10,
+        ).raise_for_status()
+        logging.info('Pushed %s to GitHub Secret.', name)
+    except Exception as e:
+        logging.warning('Failed to push %s to GitHub Secret: %s', name, e)
+
+
 def _spotify_token() -> str:
     return get_access_token(os.environ['SPOTIFY_CLIENT_ID'], os.environ['SPOTIFY_CLIENT_SECRET'])
 
@@ -125,6 +159,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             parse_mode='Markdown',
         )
         return
+
+    # Push TELEGRAM_CHAT_ID as a GitHub Variable so the cron workflow can notify this chat.
+    _push_gh_variable('TELEGRAM_CHAT_ID', str(chat_id))
 
     await update.message.reply_text(
         '*Syncify Bot* 🎵\n\n'
@@ -241,6 +278,9 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
+    # Push TELEGRAM_BOT_TOKEN to GitHub Secret so the cron workflow can send notifications.
+    _push_gh_secret('TELEGRAM_BOT_TOKEN', BOT_TOKEN)
+
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler('start', cmd_start))
     app.add_handler(CommandHandler('playlists', cmd_playlists))
