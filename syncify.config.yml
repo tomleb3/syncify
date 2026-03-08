@@ -1,0 +1,27 @@
+# ─────────────────────────────────────────────
+# Syncify configuration
+# Fill in your values and commit this file.
+# Secrets (Client ID / Secret) are set separately in GitHub → Settings → Secrets.
+# ─────────────────────────────────────────────
+
+# Your Spotify user ID.
+# How to find it: open Spotify → Your Profile → "..." → Share → Copy link.
+# The ID is the segment after /user/ in the URL.
+user_id: "your_user_id_here"
+
+# Name of the playlist Syncify will create (or update if it already exists).
+target_playlist: "Syncified"
+
+# Playlists to merge into the target playlist.
+# Names are case-sensitive. Leave empty to sync ALL your playlists.
+source_playlists:
+  - "Playlist A"
+  - "Playlist B"
+
+# Set to true to include playlists you follow but don't own.
+include_external: false
+
+telegram:
+  # Your Telegram chat ID.
+  # Run 'make bot', send /start to your bot, and it will print your ID here.
+  chat_id: ""
