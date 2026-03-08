@@ -1,8 +1,8 @@
 .PHONY: init setup bot run clean
 
 init:
-	uv venv
-	. .venv/bin/activate && uv sync
+	uv venv --clear --quiet
+	. .venv/bin/activate && uv sync --locked --quiet
 
 setup:
 	. .venv/bin/activate && python setup.py
