@@ -23,8 +23,8 @@ cd syncify
 ```
 
 The repo includes:
-- **`syncify.config.yml.example`** — committed, shows the config structure
-- **`syncify.config.yml`** — gitignored, your personal config (created on first use)
+- **`syncify.config.yml.example`** - committed, shows the config structure
+- **`syncify.config.yml`** - gitignored, your personal config (created on first use)
 
 Your personal `syncify.config.yml` will never appear in git history.
 
@@ -46,7 +46,7 @@ The script will:
 4. Ask for a target playlist name and other options
 5. Write `syncify.config.yml` with your choices
 
-**Important:** `syncify.config.yml` is in `.gitignore` — it will never be committed or pushed. Your config stays private.
+**Important:** `syncify.config.yml` is in `.gitignore`. It will never be committed or pushed. Your config stays private.
 
 ---
 
@@ -65,7 +65,7 @@ Add a line like:
 0 0 * * * cd /path/to/syncify && export SPOTIFY_CLIENT_ID=... SPOTIFY_CLIENT_SECRET=... && make run
 ```
 
-Or use systemd timer for more control. `syncify.config.yml` is local — no secrets to manage in git.
+Or use systemd timer for more control. `syncify.config.yml` is local (no secrets to manage in git).
 
 ### GitHub Actions (scheduled cron)
 
@@ -145,7 +145,7 @@ The script uses this priority (first match wins):
 **Why this matters:**
 - **Locally**: `make setup` creates `syncify.config.yml`, which is read automatically
 - **GitHub Actions**: `syncify.config.yml` doesn't exist (gitignored), so env vars from Secrets/Variables are used
-- **VPS/server**: Same as local — the config file exists on the machine you set it up on
+- **VPS/server**: As in local, the config file exists on the machine you set it up on
 
 Customize the workflow schedule in [`.github/workflows/syncify.yml`](.github/workflows/syncify.yml) if needed:
 
@@ -170,7 +170,7 @@ make run
 TELEGRAM_BOT_TOKEN=your_token GITHUB_TOKEN=your_pat make bot
 ```
 
-`GITHUB_TOKEN` is a [Personal Access Token](https://github.com/settings/tokens) with **Actions Variables write** permission. When set, saving a playlist selection in the bot immediately updates the `SPOTIFY_SOURCE_PLAYLISTS` GitHub Variable — so the next scheduled cron run picks it up automatically.
+`GITHUB_TOKEN` is a [Personal Access Token](https://github.com/settings/tokens) with **Actions Variables write** permission. When set, saving a playlist selection in the bot immediately updates the `SPOTIFY_SOURCE_PLAYLISTS` GitHub Variable, so the next scheduled cron run picks it up automatically.
 
 **Full automated flow:**
 1. Local cron or GitHub Actions calls `make run`
@@ -180,7 +180,7 @@ TELEGRAM_BOT_TOKEN=your_token GITHUB_TOKEN=your_pat make bot
 
 ## Telegram bot (optional)
 
-The Telegram bot lets you manage playlist selection interactively and receive a success/failure message after every sync — whether triggered manually via Telegram or by the scheduled cron job.
+The Telegram bot lets you manage playlist selection interactively and receive a success/failure message after every sync, whether triggered manually via Telegram or by the scheduled cron job.
 
 ### Bot commands
 
@@ -210,7 +210,7 @@ The Telegram bot lets you manage playlist selection interactively and receive a 
    ```
    This file stays local (it's in `.gitignore`).
 
-5. **Run the bot locally** (or on a VPS/server) with `make bot` any time you want to change your playlist selection. The cron job does not need the bot running — it just sends a notification when done.
+5. **Run the bot locally** (or on a VPS/server) with `make bot` any time you want to change your playlist selection. The cron job does not need the bot running, it just sends a notification when done.
 
 ---
 
@@ -223,7 +223,7 @@ export SPOTIFY_CLIENT_ID=your_client_id
 export SPOTIFY_CLIENT_SECRET=your_client_secret
 export TELEGRAM_BOT_TOKEN=your_bot_token  # optional
 
-make setup   # interactive — generates syncify.config.yml
+make setup   # interactive - generates syncify.config.yml
 make bot     # run the Telegram bot for interactive playlist selection
 make run     # run the sync immediately
 ```
