@@ -33,7 +33,7 @@ Syncify uses the Spotify OAuth Authorization Code flow (not Client Credentials).
 
 Required scopes: `playlist-read-private`, `playlist-modify-private`.
 
-The redirect URI is `https://localhost:8888/callback`. This must be registered in the Spotify app's settings.
+The redirect URI is `http://127.0.0.1:8888/callback`. This must be registered in the Spotify app's settings.
 
 ## Required environment variables
 

@@ -12,7 +12,7 @@ Syncify reads your chosen source playlists and adds any tracks not already prese
 
 Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), create a new app, and note down the **Client ID** and **Client Secret**.
 
-Add `https://localhost:8888/callback` as a **Redirect URI** in the app settings.
+Add `http://127.0.0.1:8888/callback` as a **Redirect URI** in the app settings.
 
 ### 2. Fork this repo
 

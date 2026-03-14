@@ -6,7 +6,7 @@ pushes it to GitHub Secrets so the sync workflow can use it.
 
 Run with: make auth
 
-Before running, add https://localhost:8888/callback to your Spotify app's
+Before running, add http://127.0.0.1:8888/callback to your Spotify app's
 Redirect URIs (Spotify Developer Dashboard → your app → Edit Settings).
 """
 
@@ -15,11 +15,10 @@ import re
 import subprocess
 import sys
 import urllib.parse
-import webbrowser
 
 import requests
 
-REDIRECT_URI = 'https://localhost:8888/callback'
+REDIRECT_URI = 'http://127.0.0.1:8888/callback'
 SCOPES = 'playlist-read-private playlist-modify-private'
 
 
@@ -31,9 +30,8 @@ def authorize(client_id: str, client_secret: str) -> tuple[str, str]:
         'redirect_uri': REDIRECT_URI,
         'scope': SCOPES,
     })
-    print('Opening browser for Spotify authorization...')
-    print(f'If it does not open automatically, visit:\n  {auth_url}\n')
-    webbrowser.open(auth_url)
+    print('Open the following URL in your browser to authorize Syncify:')
+    print(f'  {auth_url}\n')
 
     print('After authorizing, your browser will redirect to localhost and show a connection error.')
     print('Copy the full URL from the address bar and paste it here.')
@@ -78,7 +76,7 @@ def _detect_gh_repo() -> str:
 
 def main() -> None:
     print('=== Syncify Auth ===')
-    print('Make sure https://localhost:8888/callback is added to your Spotify app\'s Redirect URIs.\n')
+    print('Make sure http://127.0.0.1:8888/callback is added to your Spotify app\'s Redirect URIs.\n')
 
     client_id = os.environ.get('SPOTIFY_CLIENT_ID') or input('Spotify Client ID: ').strip()
     client_secret = os.environ.get('SPOTIFY_CLIENT_SECRET') or input('Spotify Client Secret: ').strip()
