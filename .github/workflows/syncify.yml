@@ -29,8 +29,8 @@ jobs:
           SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
 
           # Optional config - set in: Settings -> Secrets and variables -> Actions -> Variables
-          SPOTIFY_SOURCE_PLAYLISTS: ${{ vars.SPOTIFY_SOURCE_PLAYLISTS }}
-          SPOTIFY_TARGET_PLAYLIST: ${{ vars.SPOTIFY_TARGET_PLAYLIST }}
+          SPOTIFY_SOURCE_PLAYLIST_IDS: ${{ vars.SPOTIFY_SOURCE_PLAYLIST_IDS }}
+          SPOTIFY_TARGET_PLAYLIST_ID: ${{ vars.SPOTIFY_TARGET_PLAYLIST_ID }}
           SPOTIFY_INCLUDE_EXTERNAL: ${{ vars.SPOTIFY_INCLUDE_EXTERNAL }}
 
           # Optional - enables Telegram notifications

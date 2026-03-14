@@ -3,7 +3,7 @@ import requests
 
 BASE_URL = 'https://api.spotify.com'
 
-TARGET_PLAYLIST_NAME = os.environ.get('SPOTIFY_TARGET_PLAYLIST') or 'Syncified'
+TARGET_PLAYLIST_ID = os.environ['SPOTIFY_TARGET_PLAYLIST_ID']
 
 
 def get_current_user_id(access_token: str) -> str:
@@ -57,7 +57,7 @@ def get_playlists(user_id: str, include_external: bool, access_token: str) -> li
         raise
 
     # Filter out target playlist.
-    items = [item for item in items if item['name'] != TARGET_PLAYLIST_NAME]
+    items = [item for item in items if item['id'] != TARGET_PLAYLIST_ID]
 
     if include_external:
         return items
@@ -65,22 +65,18 @@ def get_playlists(user_id: str, include_external: bool, access_token: str) -> li
     return [item for item in items if item['owner']['id'] == user_id]
 
 
-def get_playlist_by_name(playlist_name: str, access_token: str) -> dict | None:
-    """Fetches a playlist by name, searching all playlists including the target."""
-    url: str | None = f'{BASE_URL}/v1/me/playlists?limit=50'
+def get_playlist_by_id(playlist_id: str, access_token: str) -> dict:
+    """Fetches a playlist by its Spotify ID."""
     try:
-        while url:
-            response = requests.get(url, headers={'Authorization': f'Bearer {access_token}'})
-            response.raise_for_status()
-            data = response.json()
-            for playlist in data.get('items', []):
-                if playlist['name'] == playlist_name:
-                    return playlist
-            url = data.get('next')
+        response = requests.get(
+            f'{BASE_URL}/v1/playlists/{playlist_id}',
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        response.raise_for_status()
+        return response.json()
     except Exception as e:
-        print(f"Error searching for playlist '{playlist_name}': {e}")
+        print(f"Error fetching playlist '{playlist_id}': {e}")
         raise
-    return None
 
 
 def get_playlist_tracks(playlist_id: str, access_token: str) -> list[dict]:
@@ -103,33 +99,8 @@ def get_playlist_tracks(playlist_id: str, access_token: str) -> list[dict]:
         raise
 
 
-def get_or_create_playlist(user_id: str, playlist_name: str, access_token: str) -> dict:
-    """Fetches a playlist or creates it if it doesn't exist."""
-    target_playlist = get_playlist_by_name(playlist_name, access_token)
-
-    if target_playlist:
-        return target_playlist
-
-    try:
-        response = requests.post(
-            f'{BASE_URL}/v1/users/{user_id}/playlists',
-            headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'},
-            json={'name': playlist_name, 'description': '', 'public': False}
-        )
-        response.raise_for_status()
-        target_playlist = response.json()
-        return target_playlist
-    except Exception as e:
-        print(f"Error creating target playlist: {e}")
-        if hasattr(e, 'response') and e.response is not None:
-            print(f"Response body: {e.response.text}")
-        raise
-
-
 def on_select_playlists(user_id: str, selected_playlists: list[dict], access_token: str) -> int:
-    target_playlist = get_or_create_playlist(user_id, TARGET_PLAYLIST_NAME, access_token)
-    if not target_playlist:
-        return 0
+    target_playlist = get_playlist_by_id(TARGET_PLAYLIST_ID, access_token)
 
     target_playlist_tracks = get_playlist_tracks(target_playlist['id'], access_token)
     existing_uris = {
@@ -166,7 +137,7 @@ def on_select_playlists(user_id: str, selected_playlists: list[dict], access_tok
                 json={'uris': chunk},
             )
             response.raise_for_status()
-        print(f"Added {len(tracks_uris_to_add)} tracks to playlist '{TARGET_PLAYLIST_NAME}'.")
+        print(f"Added {len(tracks_uris_to_add)} tracks to playlist '{target_playlist['name']}'.")
         return len(tracks_uris_to_add)
     except Exception as e:
         print(f"Error adding tracks to target playlist: {e}")
@@ -197,16 +168,16 @@ def main() -> None:
     user_id = get_current_user_id(access_token)
     all_playlists = get_playlists(user_id, include_external, access_token)
 
-    source_playlists_env = os.environ.get('SPOTIFY_SOURCE_PLAYLISTS', '')
-    if source_playlists_env:
-        source_names = {name.strip() for name in source_playlists_env.split(',')}
-        selected_playlists = [p for p in all_playlists if p['name'] in source_names]
+    source_playlist_ids_env = os.environ.get('SPOTIFY_SOURCE_PLAYLIST_IDS', '')
+    if source_playlist_ids_env:
+        source_ids = {pid.strip() for pid in source_playlist_ids_env.split(',')}
+        selected_playlists = [p for p in all_playlists if p['id'] in source_ids]
     else:
         selected_playlists = all_playlists
 
     try:
         count = on_select_playlists(user_id, selected_playlists, access_token)
-        _notify_telegram(f'✅ *Syncify*: added {count} track(s) to _{TARGET_PLAYLIST_NAME}_.')
+        _notify_telegram(f'✅ *Syncify*: added {count} track(s).')
     except Exception as e:
         _notify_telegram(f'❌ *Syncify* sync failed: {e}')
         raise

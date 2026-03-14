@@ -126,15 +126,19 @@ def main() -> None:
     playlist_names = [p['name'] for p in playlists_to_show]
 
     selected_names = choose_from_list(playlist_names, 'playlists')
+    selected_ids = [p['id'] for p in playlists_to_show if p['name'] in set(selected_names)]
 
-    target_playlist = prompt('\nName for the target (merged) playlist', 'Syncified')
+    target_playlist_id = prompt('\nTarget playlist ID (the playlist to merge tracks into)')
+    if not target_playlist_id:
+        print('Error: Target playlist ID is required.')
+        sys.exit(1)
 
     # ── GitHub push ───────────────────────────────────────────────────────────
     detected_repo = _detect_gh_repo()
     repo = prompt('GitHub repo to push secrets/variables to (owner/repo)', detected_repo)
 
     if repo:
-        source_playlists_str = ','.join(selected_names) if selected_names != playlist_names else ''
+        source_playlist_ids_str = ','.join(selected_ids) if selected_names != playlist_names else ''
         print(f'\nPushing to {repo}...')
         _gh_push(
             repo=repo,
@@ -145,8 +149,8 @@ def main() -> None:
             },
             variables={
                 k: v for k, v in {
-                    'SPOTIFY_TARGET_PLAYLIST': target_playlist if target_playlist != 'Syncified' else '',
-                    'SPOTIFY_SOURCE_PLAYLISTS': source_playlists_str,
+                    'SPOTIFY_TARGET_PLAYLIST_ID': target_playlist_id,
+                    'SPOTIFY_SOURCE_PLAYLIST_IDS': source_playlist_ids_str,
                     'SPOTIFY_INCLUDE_EXTERNAL': 'true' if include_external else '',
                 }.items() if v  # skip empty/default values
             },

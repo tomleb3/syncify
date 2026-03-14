@@ -4,7 +4,7 @@ Automatically merges tracks from multiple Spotify playlists into a single target
 
 ## How it works
 
-Syncify reads your chosen source playlists and adds any tracks not already present into a single target playlist (default name: **Syncified**). It uses the [Spotify Web API](https://developer.spotify.com/documentation/web-api) with the Authorization Code flow.
+Syncify reads your chosen source playlists and adds any tracks not already present into a single target playlist. It uses the [Spotify Web API](https://developer.spotify.com/documentation/web-api) with the Authorization Code flow.
 
 ## Setup
 
@@ -53,8 +53,8 @@ All settings live as GitHub Secrets and Variables in your fork. The `make setup`
 
 | Name | Value |
 |---|---|
-| `SPOTIFY_SOURCE_PLAYLISTS` | Comma-separated playlist names (empty = all) |
-| `SPOTIFY_TARGET_PLAYLIST` | Target playlist name (default: Syncified) |
+| `SPOTIFY_SOURCE_PLAYLIST_IDS` | Comma-separated playlist IDs (empty = all) |
+| `SPOTIFY_TARGET_PLAYLIST_ID` | Target playlist ID |
 | `SPOTIFY_INCLUDE_EXTERNAL` | Include followed playlists (default: false) |
 | `TELEGRAM_CHAT_ID` | *(auto-set by bot)* Your Telegram chat ID for notifications |
 
@@ -93,7 +93,7 @@ The Telegram bot lets you manage playlist selection interactively and receive no
 
 3. Send `/start` to your bot. It will confirm your chat ID and push `TELEGRAM_CHAT_ID` as a GitHub Variable.
 
-That's it. The cron workflow will now send Telegram notifications. Run the bot with `make bot` any time you want to change your playlist selection. Saving a selection also pushes the updated `SPOTIFY_SOURCE_PLAYLISTS` Variable automatically.
+That's it. The cron workflow will now send Telegram notifications. Run the bot with `make bot` any time you want to change your playlist selection. Saving a selection also pushes the updated `SPOTIFY_SOURCE_PLAYLIST_IDS` Variable automatically.
 
 ## Local usage
 

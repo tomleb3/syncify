@@ -19,9 +19,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 from syncify import (
-    TARGET_PLAYLIST_NAME,
+    TARGET_PLAYLIST_ID,
     get_access_token,
     get_current_user_id,
+    get_playlist_by_id,
     get_playlists,
     on_select_playlists,
 )
@@ -47,7 +48,7 @@ def _is_authorized(update: Update) -> bool:
 def _build_keyboard(playlists: list[dict], selected: set[str]) -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton(
-            f"{'✅' if p['name'] in selected else '◻️'} {p['name']}",
+            f"{'✅' if p['id'] in selected else '◻️'} {p['name']}",
             callback_data=f't:{i}',
         )]
         for i, p in enumerate(playlists)
@@ -63,8 +64,8 @@ def _build_keyboard(playlists: list[dict], selected: set[str]) -> InlineKeyboard
     return InlineKeyboardMarkup(rows)
 
 
-def _save_selection(source_playlists: list[str]) -> None:
-    _push_gh_variable('SPOTIFY_SOURCE_PLAYLISTS', ','.join(source_playlists))
+def _save_selection(source_playlist_ids: list[str]) -> None:
+    _push_gh_variable('SPOTIFY_SOURCE_PLAYLIST_IDS', ','.join(source_playlist_ids))
 
 
 def _detect_gh_repo() -> str:
@@ -204,15 +205,16 @@ async def cmd_playlists(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     chat_id = update.effective_chat.id
-    source_env = os.environ.get('SPOTIFY_SOURCE_PLAYLISTS', '')
-    if source_env:
-        configured = set(name.strip() for name in source_env.split(','))
+    source_ids_env = os.environ.get('SPOTIFY_SOURCE_PLAYLIST_IDS', '')
+    if source_ids_env:
+        configured = set(pid.strip() for pid in source_ids_env.split(','))
     else:
-        configured = set(p['name'] for p in playlists)
+        configured = set(p['id'] for p in playlists)
     _state[chat_id] = {'playlists': playlists, 'selected': configured}
 
+    target = get_playlist_by_id(TARGET_PLAYLIST_ID, token)
     await msg.edit_text(
-        f'Select playlists to sync into *{TARGET_PLAYLIST_NAME}*:',
+        f'Select playlists to sync into *{target["name"]}*:',
         parse_mode='Markdown',
         reply_markup=_build_keyboard(playlists, configured),
     )
@@ -229,15 +231,15 @@ async def cmd_sync(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         include_external = os.environ.get('SPOTIFY_INCLUDE_EXTERNAL', '').lower() == 'true'
         user_id = _user_id(token)
         all_playlists = get_playlists(user_id, include_external, token)
-        source_env = os.environ.get('SPOTIFY_SOURCE_PLAYLISTS', '')
-        if source_env:
-            source_names = set(name.strip() for name in source_env.split(','))
+        source_ids_env = os.environ.get('SPOTIFY_SOURCE_PLAYLIST_IDS', '')
+        if source_ids_env:
+            source_ids = set(pid.strip() for pid in source_ids_env.split(','))
+            selected = [p for p in all_playlists if p['id'] in source_ids]
         else:
-            source_names = set(p['name'] for p in all_playlists)
-        selected = [p for p in all_playlists if p['name'] in source_names]
+            selected = all_playlists
         count = on_select_playlists(user_id, selected, token)
         await msg.edit_text(
-            f'✅ Synced! Added *{count}* track(s) to _{TARGET_PLAYLIST_NAME}_.',
+            f'✅ Synced! Added *{count}* track(s).',
             parse_mode='Markdown',
         )
     except Exception as e:
@@ -260,12 +262,12 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     data: str = query.data
 
     if data.startswith('t:'):
-        name = playlists[int(data[2:])]['name']
-        selected.discard(name) if name in selected else selected.add(name)
+        pid = playlists[int(data[2:])]['id']
+        selected.discard(pid) if pid in selected else selected.add(pid)
         await query.edit_message_reply_markup(_build_keyboard(playlists, selected))
 
     elif data == 'a:all':
-        selected.update(p['name'] for p in playlists)
+        selected.update(p['id'] for p in playlists)
         await query.edit_message_reply_markup(_build_keyboard(playlists, selected))
 
     elif data == 'a:none':
@@ -280,10 +282,10 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             status = await query.message.reply_text('Running sync…')
             try:
                 token = _spotify_token()
-                selected_playlists = [p for p in playlists if p['name'] in selected]
+                selected_playlists = [p for p in playlists if p['id'] in selected]
                 count = on_select_playlists(_user_id(token), selected_playlists, token)
                 await status.edit_text(
-                    f'✅ Synced! Added *{count}* track(s) to _{TARGET_PLAYLIST_NAME}_.',
+                    f'✅ Synced! Added *{count}* track(s).',
                     parse_mode='Markdown',
                 )
             except Exception as e:

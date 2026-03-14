@@ -49,8 +49,8 @@ The redirect URI is `http://127.0.0.1:8888/callback`. This must be registered in
 
 ### Variables (optional)
 
-- `SPOTIFY_SOURCE_PLAYLISTS` - Comma-separated playlist names (empty = all)
-- `SPOTIFY_TARGET_PLAYLIST` - Target playlist name (default: `Syncified`)
+- `SPOTIFY_SOURCE_PLAYLIST_IDS` - Comma-separated playlist IDs (empty = all)
+- `SPOTIFY_TARGET_PLAYLIST_ID` - Target playlist ID
 - `SPOTIFY_INCLUDE_EXTERNAL` - Set to `true` to include followed playlists
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
