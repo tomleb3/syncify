@@ -128,10 +128,40 @@ def main() -> None:
     selected_names = choose_from_list(playlist_names, 'playlists')
     selected_ids = [p['id'] for p in playlists_to_show if p['name'] in set(selected_names)]
 
-    target_playlist_id = prompt('\nTarget playlist ID (the playlist to merge tracks into)')
-    if not target_playlist_id:
-        print('Error: Target playlist ID is required.')
-        sys.exit(1)
+    # Target playlist: pick an existing one or create a new one.
+    print('\nWhich playlist should Syncify merge tracks into?')
+    owned_names = [p['name'] for p in owned]
+    for i, name in enumerate(owned_names, 1):
+        print(f'  {i:2}. {name}')
+    print(f'  {len(owned_names) + 1:2}. [Create new playlist]')
+    print()
+
+    while True:
+        raw = input('Enter number: ').strip()
+        try:
+            choice = int(raw)
+            if 1 <= choice <= len(owned_names) + 1:
+                break
+        except ValueError:
+            pass
+        print(f'  Invalid input. Enter a number between 1 and {len(owned_names) + 1}.')
+
+    if choice <= len(owned_names):
+        target_playlist_id = owned[choice - 1]['id']
+    else:
+        name = prompt('New playlist name', 'Syncified')
+        try:
+            response = requests.post(
+                f'{BASE_URL}/v1/users/{user_id}/playlists',
+                headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'},
+                json={'name': name, 'description': '', 'public': False},
+            )
+            response.raise_for_status()
+            target_playlist_id = response.json()['id']
+            print(f'Created playlist "{name}" ({target_playlist_id})')
+        except requests.HTTPError as e:
+            print(f'Error creating playlist: {e}')
+            sys.exit(1)
 
     # ── GitHub push ───────────────────────────────────────────────────────────
     detected_repo = _detect_gh_repo()
