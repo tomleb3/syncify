@@ -16,9 +16,9 @@ from auth import authorize
 BASE_URL = 'https://api.spotify.com'
 
 
-def fetch_playlists(user_id: str, access_token: str) -> list[dict]:
+def fetch_playlists(access_token: str) -> list[dict]:
     response = requests.get(
-        f'{BASE_URL}/v1/users/{user_id}/playlists',
+        f'{BASE_URL}/v1/me/playlists',
         headers={'Authorization': f'Bearer {access_token}'},
     )
     response.raise_for_status()
@@ -97,25 +97,26 @@ def main() -> None:
 
     client_id = os.environ.get('SPOTIFY_CLIENT_ID') or prompt('Spotify Client ID')
     client_secret = os.environ.get('SPOTIFY_CLIENT_SECRET') or prompt('Spotify Client Secret')
-    user_id = prompt('Spotify User ID (the segment after /user/ in your profile URL)')
 
-    if not all([client_id, client_secret, user_id]):
-        print('Error: Client ID, Client Secret, and User ID are all required.')
+    if not all([client_id, client_secret]):
+        print('Error: Client ID and Client Secret are required.')
         sys.exit(1)
 
     print('\nAuthorizing with Spotify...')
     print('Make sure http://127.0.0.1:8888/callback is in your Spotify app\'s Redirect URIs.')
     try:
         access_token, refresh_token = authorize(client_id, client_secret)
-        all_playlists = fetch_playlists(user_id, access_token)
+        all_playlists = fetch_playlists(access_token)
     except requests.HTTPError as e:
         print(f'Error: {e}')
         sys.exit(1)
 
     if not all_playlists:
-        print('No playlists found for this user.')
+        print('No playlists found.')
         sys.exit(1)
 
+    # Determine user ID from the first owned playlist.
+    user_id = all_playlists[0]['owner']['id']
     owned = [p for p in all_playlists if p['owner']['id'] == user_id]
     external = [p for p in all_playlists if p['owner']['id'] != user_id]
 
@@ -144,7 +145,6 @@ def main() -> None:
             },
             variables={
                 k: v for k, v in {
-                    'SPOTIFY_USER_ID': user_id,
                     'SPOTIFY_TARGET_PLAYLIST': target_playlist if target_playlist != 'Syncified' else '',
                     'SPOTIFY_SOURCE_PLAYLISTS': source_playlists_str,
                     'SPOTIFY_INCLUDE_EXTERNAL': 'true' if include_external else '',

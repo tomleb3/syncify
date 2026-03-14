@@ -29,7 +29,6 @@ jobs:
           SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
 
           # Optional config - set in: Settings -> Secrets and variables -> Actions -> Variables
-          SPOTIFY_USER_ID: ${{ vars.SPOTIFY_USER_ID }}
           SPOTIFY_SOURCE_PLAYLISTS: ${{ vars.SPOTIFY_SOURCE_PLAYLISTS }}
           SPOTIFY_TARGET_PLAYLIST: ${{ vars.SPOTIFY_TARGET_PLAYLIST }}
           SPOTIFY_INCLUDE_EXTERNAL: ${{ vars.SPOTIFY_INCLUDE_EXTERNAL }}

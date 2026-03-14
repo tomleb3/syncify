@@ -20,8 +20,8 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 
 from syncify import (
     TARGET_PLAYLIST_NAME,
-    USER_ID,
     get_access_token,
+    get_current_user_id,
     get_playlists,
     on_select_playlists,
 )
@@ -149,6 +149,16 @@ def _spotify_token() -> str:
     )
 
 
+_cached_user_id: str | None = None
+
+
+def _user_id(token: str) -> str:
+    global _cached_user_id
+    if _cached_user_id is None:
+        _cached_user_id = get_current_user_id(token)
+    return _cached_user_id
+
+
 # ── command handlers ──────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -184,7 +194,7 @@ async def cmd_playlists(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     try:
         token = _spotify_token()
         include_external = os.environ.get('SPOTIFY_INCLUDE_EXTERNAL', '').lower() == 'true'
-        playlists = get_playlists(USER_ID, include_external, token)
+        playlists = get_playlists(_user_id(token), include_external, token)
     except Exception as e:
         await msg.edit_text(f'❌ Failed to fetch playlists: {e}')
         return
@@ -217,14 +227,15 @@ async def cmd_sync(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         token = _spotify_token()
         include_external = os.environ.get('SPOTIFY_INCLUDE_EXTERNAL', '').lower() == 'true'
-        all_playlists = get_playlists(USER_ID, include_external, token)
+        user_id = _user_id(token)
+        all_playlists = get_playlists(user_id, include_external, token)
         source_env = os.environ.get('SPOTIFY_SOURCE_PLAYLISTS', '')
         if source_env:
             source_names = set(name.strip() for name in source_env.split(','))
         else:
             source_names = set(p['name'] for p in all_playlists)
         selected = [p for p in all_playlists if p['name'] in source_names]
-        count = on_select_playlists(USER_ID, selected, token)
+        count = on_select_playlists(user_id, selected, token)
         await msg.edit_text(
             f'✅ Synced! Added *{count}* track(s) to _{TARGET_PLAYLIST_NAME}_.',
             parse_mode='Markdown',
@@ -270,7 +281,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             try:
                 token = _spotify_token()
                 selected_playlists = [p for p in playlists if p['name'] in selected]
-                count = on_select_playlists(USER_ID, selected_playlists, token)
+                count = on_select_playlists(_user_id(token), selected_playlists, token)
                 await status.edit_text(
                     f'✅ Synced! Added *{count}* track(s) to _{TARGET_PLAYLIST_NAME}_.',
                     parse_mode='Markdown',

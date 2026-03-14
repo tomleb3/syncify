@@ -53,7 +53,6 @@ All settings live as GitHub Secrets and Variables in your fork. The `make setup`
 
 | Name | Value |
 |---|---|
-| `SPOTIFY_USER_ID` | Your Spotify user ID |
 | `SPOTIFY_SOURCE_PLAYLISTS` | Comma-separated playlist names (empty = all) |
 | `SPOTIFY_TARGET_PLAYLIST` | Target playlist name (default: Syncified) |
 | `SPOTIFY_INCLUDE_EXTERNAL` | Include followed playlists (default: false) |
