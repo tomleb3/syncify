@@ -11,17 +11,9 @@ import subprocess
 import sys
 import requests
 
+from auth import authorize
+
 BASE_URL = 'https://api.spotify.com'
-
-
-def get_access_token(client_id: str, client_secret: str) -> str:
-    response = requests.post(
-        'https://accounts.spotify.com/api/token',
-        data={'grant_type': 'client_credentials'},
-        auth=(client_id, client_secret),
-    )
-    response.raise_for_status()
-    return response.json()['access_token']
 
 
 def fetch_playlists(user_id: str, access_token: str) -> list[dict]:
@@ -111,9 +103,10 @@ def main() -> None:
         print('Error: Client ID, Client Secret, and User ID are all required.')
         sys.exit(1)
 
-    print('\nFetching your playlists...')
+    print('\nAuthorizing with Spotify...')
+    print('Make sure https://localhost:8888/callback is in your Spotify app\'s Redirect URIs.')
     try:
-        access_token = get_access_token(client_id, client_secret)
+        access_token, refresh_token = authorize(client_id, client_secret)
         all_playlists = fetch_playlists(user_id, access_token)
     except requests.HTTPError as e:
         print(f'Error: {e}')
@@ -147,6 +140,7 @@ def main() -> None:
             secrets={
                 'SPOTIFY_CLIENT_ID': client_id,
                 'SPOTIFY_CLIENT_SECRET': client_secret,
+                'SPOTIFY_REFRESH_TOKEN': refresh_token,
             },
             variables={
                 k: v for k, v in {

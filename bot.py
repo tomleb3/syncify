@@ -142,7 +142,11 @@ def _push_gh_secret(name: str, value: str) -> None:
 
 
 def _spotify_token() -> str:
-    return get_access_token(os.environ['SPOTIFY_CLIENT_ID'], os.environ['SPOTIFY_CLIENT_SECRET'])
+    return get_access_token(
+        os.environ['SPOTIFY_CLIENT_ID'],
+        os.environ['SPOTIFY_CLIENT_SECRET'],
+        os.environ['SPOTIFY_REFRESH_TOKEN'],
+    )
 
 
 # ── command handlers ──────────────────────────────────────────────────────────

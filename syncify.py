@@ -7,12 +7,12 @@ USER_ID = os.environ.get('SPOTIFY_USER_ID', '')
 TARGET_PLAYLIST_NAME = os.environ.get('SPOTIFY_TARGET_PLAYLIST', 'Syncified')
 
 
-def get_access_token(client_id: str, client_secret: str) -> str:
-    """Fetches the Spotify API access token using Client Credentials Flow."""
+def get_access_token(client_id: str, client_secret: str, refresh_token: str) -> str:
+    """Fetches a fresh Spotify access token using the refresh token."""
     try:
         response = requests.post(
             'https://accounts.spotify.com/api/token',
-            data={'grant_type': 'client_credentials'},
+            data={'grant_type': 'refresh_token', 'refresh_token': refresh_token},
             auth=(client_id, client_secret),
         )
         response.raise_for_status()
@@ -168,7 +168,8 @@ def main() -> None:
     client_secret = os.environ['SPOTIFY_CLIENT_SECRET']
     include_external = os.environ.get('SPOTIFY_INCLUDE_EXTERNAL', '').lower() == 'true'
 
-    access_token = get_access_token(client_id, client_secret)
+    refresh_token = os.environ['SPOTIFY_REFRESH_TOKEN']
+    access_token = get_access_token(client_id, client_secret, refresh_token)
     all_playlists = get_playlists(USER_ID, include_external, access_token)
 
     source_playlists_env = os.environ.get('SPOTIFY_SOURCE_PLAYLISTS', '')

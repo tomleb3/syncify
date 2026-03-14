@@ -26,6 +26,7 @@ jobs:
           # Required — set in: Settings → Secrets and variables → Actions → Secrets
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
 
           # Optional config — set in: Settings → Secrets and variables → Actions → Variables
           SPOTIFY_USER_ID: ${{ vars.SPOTIFY_USER_ID }}

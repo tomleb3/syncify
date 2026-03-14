@@ -1,4 +1,4 @@
-.PHONY: init setup bot run clean
+.PHONY: init setup auth bot run clean
 
 init:
 	uv venv --clear --quiet
@@ -6,6 +6,9 @@ init:
 
 setup:
 	. .venv/bin/activate && python setup.py
+
+auth:
+	. .venv/bin/activate && python auth.py
 
 bot:
 	. .venv/bin/activate && python bot.py
