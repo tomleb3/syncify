@@ -22,10 +22,14 @@ Syncify merges tracks from multiple Spotify playlists into a single target playl
 ## Common commands
 
 - `make init` - Create venv and install locked dependencies
-- `make auth` - Run OAuth flow to obtain a Spotify refresh token
+- `make auth` - Run OAuth flow to obtain a Spotify refresh token and push to GitHub
 - `make setup` - Interactive setup (authorize, pick playlists, push to GitHub)
-- `make run` - Run the sync locally
-- `make bot` - Start the Telegram bot
+- `make run` - Trigger a sync via the GitHub Actions workflow
+- `make bot` - Start the Telegram bot locally
+
+All secrets and variables are stored exclusively in GitHub Secrets/Variables.
+`make run` dispatches the workflow remotely via `gh workflow run`.
+`make setup` and `make auth` prompt for credentials interactively and push them to GitHub via the `gh` CLI.
 
 ## Authentication
 

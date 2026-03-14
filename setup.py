@@ -104,7 +104,7 @@ def main() -> None:
         sys.exit(1)
 
     print('\nAuthorizing with Spotify...')
-    print('Make sure https://localhost:8888/callback is in your Spotify app\'s Redirect URIs.')
+    print('Make sure http://127.0.0.1:8888/callback is in your Spotify app\'s Redirect URIs.')
     try:
         access_token, refresh_token = authorize(client_id, client_secret)
         all_playlists = fetch_playlists(user_id, access_token)

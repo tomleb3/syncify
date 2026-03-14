@@ -25,12 +25,10 @@ cd syncify
 
 ### 3. Run interactive setup
 
-The setup script authorizes with Spotify, fetches your playlists, lets you pick which ones to sync, and pushes everything to your GitHub repo as Secrets/Variables.
+The setup script prompts for your credentials, authorizes with Spotify, fetches your playlists, lets you pick which ones to sync, and pushes everything to your GitHub repo as Secrets/Variables.
 
 ```bash
 make init
-export SPOTIFY_CLIENT_ID=your_client_id
-export SPOTIFY_CLIENT_SECRET=your_client_secret
 make setup
 ```
 
@@ -101,13 +99,16 @@ That's it. The cron workflow will now send Telegram notifications. Run the bot w
 ## Local usage
 
 ```bash
-make init
-
-export SPOTIFY_CLIENT_ID=your_client_id
-export SPOTIFY_CLIENT_SECRET=your_client_secret
-
+make init    # create venv and install deps
 make setup   # interactive setup, pushes to GitHub
-make auth    # auth only, obtain a refresh token
-make run     # run sync locally
-make bot     # run the Telegram bot
+make auth    # re-authorize only, pushes refresh token to GitHub
+make run     # trigger a sync via GitHub Actions
+make bot     # start the Telegram bot (requires env vars, see below)
 ```
+
+`make run` dispatches the GitHub Actions workflow, so all secrets and variables
+come from GitHub. No local environment variables are needed.
+
+`make bot` is a long-running local process. It requires `SPOTIFY_CLIENT_ID`,
+`SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`, and `TELEGRAM_BOT_TOKEN` in
+the environment.

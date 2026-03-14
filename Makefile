@@ -14,7 +14,8 @@ bot:
 	. .venv/bin/activate && python bot.py
 
 run:
-	. .venv/bin/activate && python syncify.py
+	gh workflow run syncify.yml
+	@echo 'Workflow dispatched. View logs: gh run watch'
 
 clean:
 	rm -rf .venv __pycache__ .mypy_cache
