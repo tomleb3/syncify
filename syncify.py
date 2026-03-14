@@ -114,7 +114,7 @@ def get_or_create_playlist(user_id: str, playlist_name: str, access_token: str) 
         response = requests.post(
             f'{BASE_URL}/v1/users/{user_id}/playlists',
             headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'},
-            json={'name': playlist_name, 'public': False}
+            json={'name': playlist_name, 'description': '', 'public': False}
         )
         response.raise_for_status()
         target_playlist = response.json()
