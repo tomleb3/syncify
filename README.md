@@ -4,13 +4,15 @@ Automatically merges tracks from multiple Spotify playlists into a single target
 
 ## How it works
 
-Syncify reads your chosen source playlists and adds any tracks not already present into a single target playlist (default name: **Syncified**). It uses the [Spotify Web API](https://developer.spotify.com/documentation/web-api) with the Client Credentials flow.
+Syncify reads your chosen source playlists and adds any tracks not already present into a single target playlist (default name: **Syncified**). It uses the [Spotify Web API](https://developer.spotify.com/documentation/web-api) with the Authorization Code flow.
 
 ## Setup
 
 ### 1. Create a Spotify app
 
 Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), create a new app, and note down the **Client ID** and **Client Secret**.
+
+Add `https://localhost:8888/callback` as a **Redirect URI** in the app settings.
 
 ### 2. Fork this repo
 
@@ -23,7 +25,7 @@ cd syncify
 
 ### 3. Run interactive setup
 
-The setup script fetches your real Spotify playlists, lets you pick which ones to sync, and pushes everything to your GitHub repo as Secrets/Variables.
+The setup script authorizes with Spotify, fetches your playlists, lets you pick which ones to sync, and pushes everything to your GitHub repo as Secrets/Variables.
 
 ```bash
 make init
@@ -31,6 +33,8 @@ export SPOTIFY_CLIENT_ID=your_client_id
 export SPOTIFY_CLIENT_SECRET=your_client_secret
 make setup
 ```
+
+`make setup` includes authorization as part of the wizard. Run `make auth` separately only if you need to re-authorize later (e.g. your refresh token was revoked) without repeating the full setup.
 
 That's it. GitHub Actions will sync your playlists daily at midnight UTC.
 
@@ -44,6 +48,7 @@ All settings live as GitHub Secrets and Variables in your fork. The `make setup`
 |---|---|
 | `SPOTIFY_CLIENT_ID` | Your Spotify app's Client ID |
 | `SPOTIFY_CLIENT_SECRET` | Your Spotify app's Client Secret |
+| `SPOTIFY_REFRESH_TOKEN` | Refresh token from `make auth` or `make setup` |
 | `TELEGRAM_BOT_TOKEN` | *(auto-set by bot)* Telegram bot token for notifications |
 
 **Variables** (Settings → Secrets and variables → Actions → Variables):
@@ -81,7 +86,7 @@ The Telegram bot lets you manage playlist selection interactively and receive no
 
 ### Bot setup
 
-1. Message [@BotFather](https://t.me/BotFather) on Telegram → `/newbot` → copy the token.
+1. Message [@BotFather](https://t.me/BotFather) on Telegram, send `/newbot`, and copy the token.
 
 2. Run the bot with a GitHub PAT and it will push the token as a GitHub Secret automatically:
    ```bash
@@ -102,6 +107,7 @@ export SPOTIFY_CLIENT_ID=your_client_id
 export SPOTIFY_CLIENT_SECRET=your_client_secret
 
 make setup   # interactive setup, pushes to GitHub
+make auth    # auth only, obtain a refresh token
 make run     # run sync locally
 make bot     # run the Telegram bot
 ```
