@@ -19,7 +19,7 @@ def get_access_token(client_id: str, client_secret: str) -> str:
         token_data = response.json()
     except Exception as e:
         print(f"Error fetching access token: {e}")
-        return ""
+        raise
 
     return token_data['access_token']
 
@@ -41,7 +41,7 @@ def get_playlists(user_id: str, include_external: bool, access_token: str) -> li
             url = data.get('next')
     except Exception as e:
         print(f"Error fetching playlists: {e}")
-        return []
+        raise
 
     # Filter out target playlist.
     items = [item for item in items if item['name'] != TARGET_PLAYLIST_NAME]
@@ -78,7 +78,7 @@ def get_playlist_tracks(playlist_id: str, access_token: str) -> list[dict]:
         return items
     except Exception as e:
         print(f"Error fetching playlist tracks: {e}")
-        return []
+        raise
 
 
 def get_or_create_playlist(user_id: str, playlist_name: str, access_token: str) -> dict:
@@ -99,7 +99,7 @@ def get_or_create_playlist(user_id: str, playlist_name: str, access_token: str) 
         return target_playlist
     except Exception as e:
         print(f"Error creating target playlist: {e}")
-        return {}
+        raise
 
 
 def on_select_playlists(user_id: str, selected_playlists: list[dict], access_token: str) -> int:
