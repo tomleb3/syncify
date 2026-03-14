@@ -3,7 +3,7 @@ import requests
 
 BASE_URL = 'https://api.spotify.com'
 
-TARGET_PLAYLIST_NAME = os.environ.get('SPOTIFY_TARGET_PLAYLIST', 'Syncified')
+TARGET_PLAYLIST_NAME = os.environ.get('SPOTIFY_TARGET_PLAYLIST') or 'Syncified'
 
 
 def get_current_user_id(access_token: str) -> str:
