@@ -1,7 +1,7 @@
 name: Syncify
 
 on:
-  # Run on a schedule — adjust the cron expression to your liking.
+  # Run on a schedule - adjust the cron expression to your liking.
   # Default: every day at midnight UTC. Use https://crontab.guru to build expressions.
   schedule:
     - cron: '0 0 * * *'
@@ -23,18 +23,18 @@ jobs:
 
       - name: Run Syncify
         env:
-          # Required — set in: Settings → Secrets and variables → Actions → Secrets
+          # Required - set in: Settings -> Secrets and variables -> Actions -> Secrets
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
           SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
 
-          # Optional config — set in: Settings → Secrets and variables → Actions → Variables
+          # Optional config - set in: Settings -> Secrets and variables -> Actions -> Variables
           SPOTIFY_USER_ID: ${{ vars.SPOTIFY_USER_ID }}
           SPOTIFY_SOURCE_PLAYLISTS: ${{ vars.SPOTIFY_SOURCE_PLAYLISTS }}
           SPOTIFY_TARGET_PLAYLIST: ${{ vars.SPOTIFY_TARGET_PLAYLIST }}
           SPOTIFY_INCLUDE_EXTERNAL: ${{ vars.SPOTIFY_INCLUDE_EXTERNAL }}
 
-          # Optional — enables Telegram notifications
+          # Optional - enables Telegram notifications
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
         run: uv run python syncify.py

@@ -1,12 +1,12 @@
 """
-Syncify Telegram bot — interactive playlist selection and on-demand sync.
+Syncify Telegram bot - interactive playlist selection and on-demand sync.
 
 Run with: make bot
 
 Commands:
-  /start     — show help (also reveals your chat ID for first-time setup)
-  /playlists — pick which playlists to sync via an inline keyboard
-  /sync      — run sync immediately using the current config
+  /start     - show help (also reveals your chat ID for first-time setup)
+  /playlists - pick which playlists to sync via an inline keyboard
+  /sync      - run sync immediately using the current config
 """
 
 import logging
