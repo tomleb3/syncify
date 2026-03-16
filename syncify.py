@@ -161,10 +161,9 @@ def sync_selected_playlists(
             response.raise_for_status()
             added_count += len(chunk)
 
-        action = 'Updated'
         if remove_missing:
             print(
-                f"{action} playlist '{target_playlist['name']}': "
+                f"Updated playlist '{target_playlist['name']}': "
                 f"added {added_count}, removed {removed_count}."
             )
         else:
