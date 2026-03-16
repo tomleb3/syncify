@@ -23,7 +23,7 @@ Syncify merges tracks from multiple Spotify playlists into a single target playl
 
 - `make init` - Create venv and install locked dependencies
 - `make auth` - Run OAuth flow to obtain a Spotify refresh token and push to GitHub
-- `make setup` - Interactive setup (authorize, pick playlists, push to GitHub)
+- `make setup` - Interactive setup (authorize, pick playlists, choose sync mode, push to GitHub)
 - `make run` - Trigger a sync via the GitHub Actions workflow
 - `make bot` - Start the Telegram bot locally
 
@@ -54,6 +54,7 @@ The redirect URI is `http://127.0.0.1:8888/callback`. This must be registered in
 - `SPOTIFY_INCLUDE_EXTERNAL` - Set to `true` to include followed playlists
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
+- `SPOTIFY_REMOVE_MISSING` - Set to `true` to prune tracks that are no longer present in the selected source playlists
 
 ## Error handling conventions
 

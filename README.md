@@ -4,7 +4,7 @@ Automatically merges tracks from multiple Spotify playlists into a single target
 
 ## How it works
 
-Syncify reads your chosen source playlists and adds any tracks not already present into a single target playlist. It uses the [Spotify Web API](https://developer.spotify.com/documentation/web-api) with the Authorization Code flow.
+Syncify reads your chosen source playlists and builds a deduplicated union of their tracks. By default it only appends tracks that are missing from the target playlist, and you can optionally configure it to also remove tracks that no longer exist in the source playlists. It uses the [Spotify Web API](https://developer.spotify.com/documentation/web-api) with the Authorization Code flow.
 
 ## Setup
 
@@ -57,6 +57,7 @@ All settings live as GitHub Secrets and Variables in your fork. The `make setup`
 | `SPOTIFY_TARGET_PLAYLIST_ID` | Target playlist ID |
 | `SPOTIFY_INCLUDE_EXTERNAL` | Include followed playlists (default: false) |
 | `TELEGRAM_CHAT_ID` | *(auto-set by bot)* Your Telegram chat ID for notifications |
+| `SPOTIFY_REMOVE_MISSING` | Set to `true` to keep the target playlist matched to the current source union instead of append-only |
 
 ## Schedule
 
@@ -86,10 +87,10 @@ The Telegram bot lets you manage playlist selection interactively and receive no
 1. Message [@BotFather](https://t.me/BotFather) on Telegram, send `/newbot`, and copy the token.
 
 2. Run the bot with a GitHub PAT and it will push the token as a GitHub Secret automatically:
-   ```bash
-   TELEGRAM_BOT_TOKEN=your_bot_token GITHUB_TOKEN=your_pat make bot
-   ```
-   `GITHUB_TOKEN` is a [Personal Access Token](https://github.com/settings/tokens) with **Actions Secrets write** and **Actions Variables write** permissions.
+  ```bash
+  TELEGRAM_BOT_TOKEN=your_bot_token GITHUB_TOKEN=your_pat make bot
+  ```
+  `GITHUB_TOKEN` is a [Personal Access Token](https://github.com/settings/tokens) with **Actions Secrets write** and **Actions Variables write** permissions.
 
 3. Send `/start` to your bot. It will confirm your chat ID and push `TELEGRAM_CHAT_ID` as a GitHub Variable.
 
@@ -111,3 +112,5 @@ come from GitHub. No local environment variables are needed.
 `make bot` is a long-running local process. It requires `SPOTIFY_CLIENT_ID`,
 `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`, and `TELEGRAM_BOT_TOKEN` in
 the environment.
+
+Re-run `make setup` whenever you want to change source playlists, the target playlist, or whether syncs should prune removed tracks.

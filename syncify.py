@@ -99,7 +99,11 @@ def get_playlist_tracks(playlist_id: str, access_token: str) -> list[dict]:
         raise
 
 
-def on_select_playlists(user_id: str, selected_playlists: list[dict], access_token: str) -> int:
+def sync_selected_playlists(
+    selected_playlists: list[dict],
+    access_token: str,
+    remove_missing: bool,
+) -> tuple[int, int]:
     target_playlist = get_playlist_by_id(TARGET_PLAYLIST_ID, access_token)
 
     target_playlist_tracks = get_playlist_tracks(target_playlist['id'], access_token)
@@ -108,7 +112,8 @@ def on_select_playlists(user_id: str, selected_playlists: list[dict], access_tok
         for item in target_playlist_tracks
         if item.get('track')
     }
-    tracks_uris_to_add = []
+    desired_uris: list[str] = []
+    desired_uri_set: set[str] = set()
 
     for playlist in selected_playlists:
         if not playlist:
@@ -119,16 +124,33 @@ def on_select_playlists(user_id: str, selected_playlists: list[dict], access_tok
             if not item.get('track'):
                 continue
             uri = item['track']['uri']
-            if uri not in existing_uris:
-                tracks_uris_to_add.append(uri)
-                existing_uris.add(uri)
+            if uri not in desired_uri_set:
+                desired_uris.append(uri)
+                desired_uri_set.add(uri)
 
-    if not tracks_uris_to_add:
-        print('No new tracks to add.')
-        return 0
+    tracks_uris_to_add = [uri for uri in desired_uris if uri not in existing_uris]
+    tracks_uris_to_remove = []
+    if remove_missing:
+        tracks_uris_to_remove = [uri for uri in existing_uris if uri not in desired_uri_set]
+
+    if not tracks_uris_to_add and not tracks_uris_to_remove:
+        print('No changes needed.')
+        return 0, 0
 
     try:
+        removed_count = 0
+        for i in range(0, len(tracks_uris_to_remove), 100):
+            chunk = tracks_uris_to_remove[i:i + 100]
+            response = requests.delete(
+                f'{BASE_URL}/v1/playlists/{target_playlist["id"]}/tracks',
+                headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'},
+                json={'tracks': [{'uri': uri} for uri in chunk]},
+            )
+            response.raise_for_status()
+            removed_count += len(chunk)
+
         # Spotify caps additions at 100 URIs per request.
+        added_count = 0
         for i in range(0, len(tracks_uris_to_add), 100):
             chunk = tracks_uris_to_add[i:i + 100]
             response = requests.post(
@@ -137,31 +159,26 @@ def on_select_playlists(user_id: str, selected_playlists: list[dict], access_tok
                 json={'uris': chunk},
             )
             response.raise_for_status()
-        print(f"Added {len(tracks_uris_to_add)} tracks to playlist '{target_playlist['name']}'.")
-        return len(tracks_uris_to_add)
+            added_count += len(chunk)
+
+        action = 'Updated'
+        if remove_missing:
+            print(
+                f"{action} playlist '{target_playlist['name']}': "
+                f"added {added_count}, removed {removed_count}."
+            )
+        else:
+            print(f"Added {added_count} tracks to playlist '{target_playlist['name']}'.")
+        return added_count, removed_count
     except Exception as e:
-        print(f"Error adding tracks to target playlist: {e}")
+        print(f"Error updating target playlist: {e}")
         raise
-
-
-def _notify_telegram(message: str) -> None:
-    token = os.environ.get('TELEGRAM_BOT_TOKEN')
-    chat_id = os.environ.get('TELEGRAM_CHAT_ID')
-    if not token or not chat_id:
-        return
-    try:
-        requests.post(
-            f'https://api.telegram.org/bot{token}/sendMessage',
-            json={'chat_id': chat_id, 'text': message, 'parse_mode': 'Markdown'},
-            timeout=10,
-        )
-    except Exception:
-        pass  # Notifications are best-effort.
 
 def main() -> None:
     client_id = os.environ['SPOTIFY_CLIENT_ID']
     client_secret = os.environ['SPOTIFY_CLIENT_SECRET']
     include_external = os.environ.get('SPOTIFY_INCLUDE_EXTERNAL', '').lower() == 'true'
+    remove_missing = os.environ.get('SPOTIFY_REMOVE_MISSING', '').lower() == 'true'
 
     refresh_token = os.environ['SPOTIFY_REFRESH_TOKEN']
     access_token = get_access_token(client_id, client_secret, refresh_token)
@@ -175,12 +192,7 @@ def main() -> None:
     else:
         selected_playlists = all_playlists
 
-    try:
-        count = on_select_playlists(user_id, selected_playlists, access_token)
-        _notify_telegram(f'✅ *Syncify*: added {count} track(s).')
-    except Exception as e:
-        _notify_telegram(f'❌ *Syncify* sync failed: {e}')
-        raise
+    sync_selected_playlists(selected_playlists, access_token, remove_missing)
 
 
 if __name__ == '__main__':

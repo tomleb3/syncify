@@ -31,6 +31,11 @@ def prompt(question: str, default: str = '') -> str:
     return answer if answer else default
 
 
+def prompt_yes_no(question: str, default: bool = False) -> bool:
+    default_text = 'y' if default else 'n'
+    return prompt(f'{question} (y/n)', default_text).lower() == 'y'
+
+
 def choose_from_list(items: list[str], label: str) -> list[str]:
     print(f'\nAvailable {label}:')
     for i, item in enumerate(items, 1):
@@ -67,25 +72,32 @@ def _detect_gh_repo() -> str:
     return ''
 
 
-def _gh_push(repo: str, secrets: dict[str, str], variables: dict[str, str]) -> None:
+def _gh_push(repo: str, secrets: dict[str, str], variables: dict[str, str | None]) -> None:
     """Push secrets and variables to GitHub via the gh CLI."""
-    def _run(args: list[str], value: str) -> bool:
-        result = subprocess.run(
+    def _run(args: list[str], value: str = '') -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
             ['gh'] + args + ['--repo', repo],
             input=value, text=True, capture_output=True,
         )
-        return result.returncode == 0
 
     print()
     all_ok = True
     for name, value in secrets.items():
-        ok = _run(['secret', 'set', name], value)
+        result = _run(['secret', 'set', name], value)
+        ok = result.returncode == 0
         print(f'  {"✅" if ok else "❌"} secret  {name}')
         all_ok = all_ok and ok
 
     for name, value in variables.items():
-        ok = _run(['variable', 'set', name, '--body', value], '')
-        print(f'  {"✅" if ok else "❌"} variable {name}')
+        if value is None:
+            result = _run(['variable', 'delete', name])
+            ok = result.returncode == 0 or 'not found' in result.stderr.lower()
+            action = 'cleared'
+        else:
+            result = _run(['variable', 'set', name, '--body', value])
+            ok = result.returncode == 0
+            action = 'set'
+        print(f'  {"✅" if ok else "❌"} variable {name} ({action})')
         all_ok = all_ok and ok
 
     if not all_ok:
@@ -120,7 +132,7 @@ def main() -> None:
     owned = [p for p in all_playlists if p['owner']['id'] == user_id]
     external = [p for p in all_playlists if p['owner']['id'] != user_id]
 
-    include_external = prompt('Include playlists you follow but don\'t own? (y/n)', 'n').lower() == 'y'
+    include_external = prompt_yes_no('Include playlists you follow but don\'t own?')
 
     playlists_to_show = owned + (external if include_external else [])
     playlist_names = [p['name'] for p in playlists_to_show]
@@ -163,12 +175,16 @@ def main() -> None:
             print(f'Error creating playlist: {e}')
             sys.exit(1)
 
+    remove_missing = prompt_yes_no(
+        'Remove tracks from the target playlist when they are removed from the source playlists?'
+    )
+
     # ── GitHub push ───────────────────────────────────────────────────────────
     detected_repo = _detect_gh_repo()
     repo = prompt('GitHub repo to push secrets/variables to (owner/repo)', detected_repo)
 
     if repo:
-        source_playlist_ids_str = ','.join(selected_ids) if selected_names != playlist_names else ''
+        source_playlist_ids_str = ','.join(selected_ids) if selected_names != playlist_names else None
         print(f'\nPushing to {repo}...')
         _gh_push(
             repo=repo,
@@ -178,11 +194,10 @@ def main() -> None:
                 'SPOTIFY_REFRESH_TOKEN': refresh_token,
             },
             variables={
-                k: v for k, v in {
-                    'SPOTIFY_TARGET_PLAYLIST_ID': target_playlist_id,
-                    'SPOTIFY_SOURCE_PLAYLIST_IDS': source_playlist_ids_str,
-                    'SPOTIFY_INCLUDE_EXTERNAL': 'true' if include_external else '',
-                }.items() if v  # skip empty/default values
+                'SPOTIFY_TARGET_PLAYLIST_ID': target_playlist_id,
+                'SPOTIFY_SOURCE_PLAYLIST_IDS': source_playlist_ids_str,
+                'SPOTIFY_INCLUDE_EXTERNAL': 'true' if include_external else None,
+                'SPOTIFY_REMOVE_MISSING': 'true' if remove_missing else None,
             },
         )
     else:
@@ -193,7 +208,7 @@ def main() -> None:
         print('  1. Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET as GitHub Secrets.')
         print('     (Settings → Secrets and variables → Actions → Secrets)')
     print('  - The workflow will run on the configured schedule.')
-    print('  - To change playlists from your phone: make bot (requires TELEGRAM_BOT_TOKEN).')
+    print('  - Re-run `make setup` any time you want to change playlist selection or sync mode.')
 
 
 if __name__ == '__main__':

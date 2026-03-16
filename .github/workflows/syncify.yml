@@ -32,8 +32,5 @@ jobs:
           SPOTIFY_SOURCE_PLAYLIST_IDS: ${{ vars.SPOTIFY_SOURCE_PLAYLIST_IDS }}
           SPOTIFY_TARGET_PLAYLIST_ID: ${{ vars.SPOTIFY_TARGET_PLAYLIST_ID }}
           SPOTIFY_INCLUDE_EXTERNAL: ${{ vars.SPOTIFY_INCLUDE_EXTERNAL }}
-
-          # Optional - enables Telegram notifications
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
+          SPOTIFY_REMOVE_MISSING: ${{ vars.SPOTIFY_REMOVE_MISSING }}
         run: uv run python syncify.py
