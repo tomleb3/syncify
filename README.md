@@ -47,7 +47,6 @@ All settings live as GitHub Secrets and Variables in your fork. The `make setup`
 | `SPOTIFY_CLIENT_ID` | Your Spotify app's Client ID |
 | `SPOTIFY_CLIENT_SECRET` | Your Spotify app's Client Secret |
 | `SPOTIFY_REFRESH_TOKEN` | Refresh token from `make auth` or `make setup` |
-| `TELEGRAM_BOT_TOKEN` | *(auto-set by bot)* Telegram bot token for notifications |
 
 **Variables** (Settings → Secrets and variables → Actions → Variables):
 
@@ -56,7 +55,6 @@ All settings live as GitHub Secrets and Variables in your fork. The `make setup`
 | `SPOTIFY_SOURCE_PLAYLIST_IDS` | Comma-separated playlist IDs (empty = all) |
 | `SPOTIFY_TARGET_PLAYLIST_ID` | Target playlist ID |
 | `SPOTIFY_INCLUDE_EXTERNAL` | Include followed playlists (default: false) |
-| `TELEGRAM_CHAT_ID` | *(auto-set by bot)* Your Telegram chat ID for notifications |
 | `SPOTIFY_REMOVE_MISSING` | Set to `true` to keep the target playlist matched to the current source union instead of append-only |
 
 ## Schedule
@@ -70,32 +68,6 @@ schedule:
 
 Use [crontab.guru](https://crontab.guru) to build expressions.
 
-## Telegram bot (optional)
-
-The Telegram bot lets you manage playlist selection interactively and receive notifications after every sync.
-
-### Bot commands
-
-| Command | Description |
-|---|---|
-| `/start` | Show help and your chat ID |
-| `/playlists` | Pick playlists via a toggleable inline keyboard |
-| `/sync` | Run sync immediately |
-
-### Bot setup
-
-1. Message [@BotFather](https://t.me/BotFather) on Telegram, send `/newbot`, and copy the token.
-
-2. Run the bot with a GitHub PAT and it will push the token as a GitHub Secret automatically:
-  ```bash
-  TELEGRAM_BOT_TOKEN=your_bot_token GITHUB_TOKEN=your_pat make bot
-  ```
-  `GITHUB_TOKEN` is a [Personal Access Token](https://github.com/settings/tokens) with **Actions Secrets write** and **Actions Variables write** permissions.
-
-3. Send `/start` to your bot. It will confirm your chat ID and push `TELEGRAM_CHAT_ID` as a GitHub Variable.
-
-That's it. The cron workflow will now send Telegram notifications. Run the bot with `make bot` any time you want to change your playlist selection. Saving a selection also pushes the updated `SPOTIFY_SOURCE_PLAYLIST_IDS` Variable automatically.
-
 ## Local usage
 
 ```bash
@@ -103,14 +75,9 @@ make init    # create venv and install deps
 make setup   # interactive setup, pushes to GitHub
 make auth    # re-authorize only, pushes refresh token to GitHub
 make run     # trigger a sync via GitHub Actions
-make bot     # start the Telegram bot (requires env vars, see below)
 ```
 
 `make run` dispatches the GitHub Actions workflow, so all secrets and variables
 come from GitHub. No local environment variables are needed.
-
-`make bot` is a long-running local process. It requires `SPOTIFY_CLIENT_ID`,
-`SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`, and `TELEGRAM_BOT_TOKEN` in
-the environment.
 
 Re-run `make setup` whenever you want to change source playlists, the target playlist, or whether syncs should prune removed tracks.

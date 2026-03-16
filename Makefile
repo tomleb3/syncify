@@ -1,4 +1,4 @@
-.PHONY: init setup auth bot run clean
+.PHONY: init setup auth run clean
 
 init:
 	uv venv --clear --quiet
@@ -9,9 +9,6 @@ setup:
 
 auth:
 	. .venv/bin/activate && python auth.py
-
-bot:
-	. .venv/bin/activate && python bot.py
 
 run:
 	gh workflow run syncify.yml

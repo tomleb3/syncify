@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Syncify merges tracks from multiple Spotify playlists into a single target playlist, deduplicating as it goes. It runs as a scheduled GitHub Actions workflow and can also be managed interactively via a Telegram bot.
+Syncify merges tracks from multiple Spotify playlists into a single target playlist, deduplicating as it goes. It runs as a scheduled GitHub Actions workflow.
 
 ## Language and tooling
 
@@ -15,9 +15,8 @@ Syncify merges tracks from multiple Spotify playlists into a single target playl
 - `syncify.py` - Core sync logic and CLI entry point (`make run`)
 - `auth.py` - One-time Spotify OAuth Authorization Code flow (`make auth`)
 - `setup.py` - Interactive setup wizard, pushes secrets/variables to GitHub (`make setup`)
-- `bot.py` - Telegram bot for interactive playlist management (`make bot`)
 - `.github/workflows/syncify.yml` - Scheduled GitHub Actions workflow
-- `Makefile` - Common tasks: `init`, `setup`, `auth`, `bot`, `run`, `clean`
+- `Makefile` - Common tasks: `init`, `setup`, `auth`, `run`, `clean`
 
 ## Common commands
 
@@ -25,7 +24,6 @@ Syncify merges tracks from multiple Spotify playlists into a single target playl
 - `make auth` - Run OAuth flow to obtain a Spotify refresh token and push to GitHub
 - `make setup` - Interactive setup (authorize, pick playlists, choose sync mode, push to GitHub)
 - `make run` - Trigger a sync via the GitHub Actions workflow
-- `make bot` - Start the Telegram bot locally
 
 All secrets and variables are stored exclusively in GitHub Secrets/Variables.
 `make run` dispatches the workflow remotely via `gh workflow run`.
@@ -52,15 +50,13 @@ The redirect URI is `http://127.0.0.1:8888/callback`. This must be registered in
 - `SPOTIFY_SOURCE_PLAYLIST_IDS` - Comma-separated playlist IDs (empty = all)
 - `SPOTIFY_TARGET_PLAYLIST_ID` - Target playlist ID
 - `SPOTIFY_INCLUDE_EXTERNAL` - Set to `true` to include followed playlists
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
 - `SPOTIFY_REMOVE_MISSING` - Set to `true` to prune tracks that are no longer present in the selected source playlists
 
 ## Error handling conventions
 
 All functions that make Spotify API calls must re-raise exceptions after logging. Never swallow errors by returning empty defaults (e.g. `return []` or `return {}`). Errors must propagate to the caller so the process exits with a non-zero exit code on failure.
 
-The only exception is best-effort operations like Telegram notifications (`_notify_telegram`) and GitHub variable/secret pushes (`_push_gh_variable`, `_push_gh_secret`), which log warnings but do not raise.
+The only exception is best-effort GitHub variable/secret pushes in setup flows, which log warnings but do not raise.
 
 ## Style guidelines
 
