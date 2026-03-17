@@ -14,12 +14,78 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.parse
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import requests
 
 REDIRECT_URI = 'http://127.0.0.1:8888/callback'
 SCOPES = 'playlist-read-private playlist-modify-private'
+
+
+def _parse_redirect_params(redirected_url: str) -> dict[str, list[str]]:
+    return urllib.parse.parse_qs(urllib.parse.urlparse(redirected_url).query)
+
+
+def _prompt_for_redirect(auth_url: str) -> dict[str, list[str]]:
+    print('Open the following URL in your browser to authorize Syncify:')
+    print(f'  {auth_url}\n')
+    print('After authorizing, copy the full redirected URL from the address bar and paste it here.')
+    redirected_url = input('Redirected URL: ').strip()
+    return _parse_redirect_params(redirected_url)
+
+
+def _listen_for_redirect(auth_url: str, timeout_seconds: int = 120) -> dict[str, list[str]]:
+    callback_data: dict[str, dict[str, list[str]]] = {}
+
+    class CallbackHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            parsed = urllib.parse.urlparse(self.path)
+            if parsed.path != '/callback':
+                self.send_response(404)
+                self.end_headers()
+                return
+
+            callback_data['params'] = urllib.parse.parse_qs(parsed.query)
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(
+                b'<html><body><h1>Syncify authorization complete.</h1>'
+                b'<p>You can close this tab and return to the terminal.</p></body></html>'
+            )
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    with HTTPServer(('127.0.0.1', 8888), CallbackHandler) as server:
+        print('Open the following URL in your browser to authorize Syncify:')
+        print(f'  {auth_url}\n')
+        print('After approving access, Spotify will redirect back to http://127.0.0.1:8888/callback.')
+        print('Waiting for Spotify to redirect back...')
+
+        deadline = time.monotonic() + timeout_seconds
+        while 'params' not in callback_data:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError('Timed out waiting for the Spotify redirect.')
+            server.timeout = min(1.0, remaining)
+            server.handle_request()
+
+    return callback_data['params']
+
+
+def _get_authorization_params(auth_url: str) -> dict[str, list[str]]:
+    try:
+        return _listen_for_redirect(auth_url)
+    except OSError as exc:
+        print(f'Could not start the local callback listener: {exc}')
+    except TimeoutError as exc:
+        print(str(exc))
+
+    print('Falling back to manual redirect capture.\n')
+    return _prompt_for_redirect(auth_url)
 
 
 def authorize(client_id: str, client_secret: str) -> tuple[str, str]:
@@ -30,14 +96,7 @@ def authorize(client_id: str, client_secret: str) -> tuple[str, str]:
         'redirect_uri': REDIRECT_URI,
         'scope': SCOPES,
     })
-    print('Open the following URL in your browser to authorize Syncify:')
-    print(f'  {auth_url}\n')
-
-    print('After authorizing, your browser will redirect to localhost and show a connection error.')
-    print('Copy the full URL from the address bar and paste it here.')
-    redirected_url = input('Redirected URL: ').strip()
-
-    params = urllib.parse.parse_qs(urllib.parse.urlparse(redirected_url).query)
+    params = _get_authorization_params(auth_url)
     if 'error' in params:
         print(f'Authorization denied: {params["error"][0]}')
         sys.exit(1)
