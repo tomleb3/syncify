@@ -72,6 +72,23 @@ def _detect_gh_repo() -> str:
     return ''
 
 
+def _gh_secret_names(repo: str) -> set[str]:
+    """Return the names of GitHub Actions secrets configured for a repo."""
+    result = subprocess.run(
+        ['gh', 'secret', 'list', '--repo', repo],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return set()
+
+    secret_names: set[str] = set()
+    for line in result.stdout.splitlines()[1:]:
+        parts = line.split()
+        if parts:
+            secret_names.add(parts[0])
+    return secret_names
+
+
 def _gh_push(repo: str, secrets: dict[str, str], variables: dict[str, str | None]) -> None:
     """Push secrets and variables to GitHub via the gh CLI."""
     def _run(args: list[str], value: str = '') -> subprocess.CompletedProcess[str]:
@@ -184,15 +201,30 @@ def main() -> None:
     repo = prompt('GitHub repo to push secrets/variables to (owner/repo)', detected_repo)
 
     if repo:
+        existing_secret_names = _gh_secret_names(repo)
+        secrets_to_push = {
+            'SPOTIFY_REFRESH_TOKEN': refresh_token,
+        }
+
+        if 'SPOTIFY_CLIENT_ID' in existing_secret_names:
+            overwrite_client_id = prompt_yes_no('Overwrite existing GitHub secret SPOTIFY_CLIENT_ID?')
+            if overwrite_client_id:
+                secrets_to_push['SPOTIFY_CLIENT_ID'] = client_id
+        else:
+            secrets_to_push['SPOTIFY_CLIENT_ID'] = client_id
+
+        if 'SPOTIFY_CLIENT_SECRET' in existing_secret_names:
+            overwrite_client_secret = prompt_yes_no('Overwrite existing GitHub secret SPOTIFY_CLIENT_SECRET?')
+            if overwrite_client_secret:
+                secrets_to_push['SPOTIFY_CLIENT_SECRET'] = client_secret
+        else:
+            secrets_to_push['SPOTIFY_CLIENT_SECRET'] = client_secret
+
         source_playlist_ids_str = ','.join(selected_ids) if selected_names != playlist_names else None
         print(f'\nPushing to {repo}...')
         _gh_push(
             repo=repo,
-            secrets={
-                'SPOTIFY_CLIENT_ID': client_id,
-                'SPOTIFY_CLIENT_SECRET': client_secret,
-                'SPOTIFY_REFRESH_TOKEN': refresh_token,
-            },
+            secrets=secrets_to_push,
             variables={
                 'SPOTIFY_TARGET_PLAYLIST_ID': target_playlist_id,
                 'SPOTIFY_SOURCE_PLAYLIST_IDS': source_playlist_ids_str,
