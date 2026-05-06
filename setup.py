@@ -156,17 +156,50 @@ def choose_from_list(items: list[str], label: str) -> list[str]:
 
 
 def _detect_gh_repo() -> str:
-    """Detect owner/repo from git remote origin URL."""
+    """Detect owner/repo from git remotes, prioritizing the current user's fork."""
     try:
-        result = subprocess.run(
-            ['git', 'remote', 'get-url', 'origin'],
+        # Get current GitHub user
+        user_result = subprocess.run(
+            ['gh', 'api', 'user', '-q', '.login'],
             capture_output=True, text=True, check=True,
         )
-        url = result.stdout.strip()
-        # https://github.com/owner/repo(.git)
-        m = re.search(r'github\.com[:/](.+?/[^/]+?)(?:\.git)?$', url)
-        if m:
-            return m.group(1)
+        gh_user = user_result.stdout.strip().lower()
+    except Exception:
+        gh_user = ''
+
+    try:
+        # Get all remotes
+        remotes_result = subprocess.run(
+            ['git', 'remote', '-v'],
+            capture_output=True, text=True, check=True,
+        )
+
+        remotes = {}
+        for line in remotes_result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                name, url = parts[0], parts[1]
+                m = re.search(r'github\.com[:/](.+?/[^/]+?)(?:\.git)?$', url)
+                if m:
+                    repo_full = m.group(1)
+                    remotes[name] = repo_full
+
+        if not remotes:
+            return ''
+
+        # 1. Look for a remote matching the user's login
+        if gh_user:
+            for repo_full in remotes.values():
+                if repo_full.lower().startswith(f'{gh_user}/'):
+                    return repo_full
+
+        # 2. Prefer 'origin' if it's there
+        if 'origin' in remotes:
+            return remotes['origin']
+
+        # 3. Just return the first one found
+        return list(remotes.values())[0]
+
     except subprocess.CalledProcessError:
         pass
     return ''
