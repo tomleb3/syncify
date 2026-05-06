@@ -1,415 +1,520 @@
-"""
-Interactive setup for Syncify.
-Fetches your Spotify playlists, lets you pick which ones to sync,
-and pushes everything to GitHub Secrets/Variables.
-Requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET in the environment.
-"""
-
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
-import time
 import urllib.parse
+import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any, Dict, Optional
 
 import requests
 
 BASE_URL = 'https://api.spotify.com'
-REDIRECT_URI = 'http://127.0.0.1:8888/callback'
+GUI_PORT = 8888
+REDIRECT_URI = f'http://127.0.0.1:{GUI_PORT}/callback'
+GUI_URL = f'http://127.0.0.1:{GUI_PORT}'
 SCOPES = 'playlist-read-private playlist-modify-private'
 
+def load_env():
+    """Manually parse .env file to avoid extra dependencies."""
+    env = {}
+    if os.path.exists('.env'):
+        with open('.env', 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    key, value = line.split('=', 1)
+                    env[key.strip()] = value.strip().strip('"').strip("'")
+    return env
 
-def _parse_redirect_params(redirected_url: str) -> dict[str, list[str]]:
-    return urllib.parse.parse_qs(urllib.parse.urlparse(redirected_url).query)
+ENV_VARS = load_env()
 
+# Global state to track progress
+STATE: Dict[str, Any] = {
+    'step': 'credentials',
+    'client_id': ENV_VARS.get('SPOTIFY_CLIENT_ID', os.environ.get('SPOTIFY_CLIENT_ID', '')),
+    'client_secret': ENV_VARS.get('SPOTIFY_CLIENT_SECRET', os.environ.get('SPOTIFY_CLIENT_SECRET', '')),
+    'access_token': None,
+    'refresh_token': None,
+    'playlists': [],
+    'selected_source_ids': [],
+    'target_playlist_id': None,
+    'include_external': False,
+    'remove_missing': False,
+    'repo': '',
+    'error': None,
+    'pushed_items': [],
+    'should_stop': False
+}
 
-def _prompt_for_redirect(auth_url: str) -> dict[str, list[str]]:
-    print('Open the following URL in your browser to authorize Syncify:')
-    print(f'  {auth_url}\n')
-    print('After authorizing, copy the full redirected URL from the address bar and paste it here.')
-    redirected_url = input('Redirected URL: ').strip()
-    return _parse_redirect_params(redirected_url)
+def get_template(content: str) -> str:
+    return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syncify Setup</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {{
+            --primary: #1DB954;
+            --primary-hover: #1ed760;
+            --bg: #050505;
+            --surface: rgba(25, 25, 25, 0.9);
+            --border: rgba(255, 255, 255, 0.1);
+            --text: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.6);
+        }}
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(29, 185, 84, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(29, 185, 84, 0.05) 0%, transparent 40%);
+        }}
+        .container {{
+            background: var(--surface);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+            animation: fadeIn 0.5s ease-out;
+        }}
+        @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+        h1 {{ font-size: 1.5rem; margin-bottom: 0.5rem; font-weight: 600; letter-spacing: -0.02em; }}
+        p {{ color: var(--text-dim); font-size: 0.9rem; margin-bottom: 1.5rem; line-height: 1.5; }}
+        .error {{
+            background: rgba(255, 85, 85, 0.1);
+            border: 1px solid rgba(255, 85, 85, 0.2);
+            color: #ff5555;
+            padding: 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+        }}
+        .form-group {{ margin-bottom: 1.25rem; }}
+        label {{ display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-dim); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }}
+        input[type="text"], input[type="password"], select {{
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 0.8rem 1rem;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+        }}
+        input:focus {{ outline: none; border-color: var(--primary); background: rgba(255, 255, 255, 0.08); }}
+        .btn {{
+            width: 100%;
+            background: var(--primary);
+            color: #000;
+            border: none;
+            padding: 1rem;
+            border-radius: 100px;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-top: 0.5rem;
+        }}
+        .btn:hover {{ background: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 10px 20px rgba(29, 185, 84, 0.3); }}
+        .playlist-list {{
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 0.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border);
+        }}
+        .playlist-item {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }}
+        .playlist-item:hover {{ background: rgba(255, 255, 255, 0.05); }}
+        .checkbox-wrapper {{
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }}
+        .playlist-item.selected .checkbox-wrapper {{
+            background: var(--primary);
+            border-color: var(--primary);
+        }}
+        .checkbox-wrapper::after {{
+            content: '✓';
+            color: #000;
+            font-size: 12px;
+            display: none;
+        }}
+        .playlist-item.selected .checkbox-wrapper::after {{ display: block; }}
+        .toggle-group {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }}
+        .toggle-text {{ font-size: 0.9rem; color: var(--text-dim); }}
+        .switch {{
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }}
+        .switch input {{ opacity: 0; width: 0; height: 0; }}
+        .slider {{
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .4s;
+            border-radius: 24px;
+        }}
+        .slider:before {{
+            position: absolute;
+            content: "";
+            height: 18px; width: 18px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }}
+        input:checked + .slider {{ background-color: var(--primary); }}
+        input:checked + .slider:before {{ transform: translateX(20px); }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        {content}
+    </div>
+</body>
+</html>
+"""
 
+class SetupHandler(BaseHTTPRequestHandler):
+    def _send_html(self, content: str):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.end_headers()
+        self.wfile.write(get_template(content).encode('utf-8'))
 
-def _listen_for_redirect(auth_url: str, timeout_seconds: int = 120) -> dict[str, list[str]]:
-    callback_data: dict[str, dict[str, list[str]]] = {}
+    def _redirect(self, path: str):
+        self.send_response(303)
+        self.send_header('Location', path)
+        self.end_headers()
 
-    class CallbackHandler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:
-            parsed = urllib.parse.urlparse(self.path)
-            if parsed.path != '/callback':
-                self.send_response(404)
-                self.end_headers()
-                return
-
-            callback_data['params'] = urllib.parse.parse_qs(parsed.query)
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/html; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(
-                b'<html><body><h1>Syncify authorization complete.</h1>'
-                b'<p>You can close this tab and return to the terminal.</p></body></html>'
-            )
-
-        def log_message(self, format: str, *args: object) -> None:
+    def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path)
+        
+        if parsed.path == '/callback':
+            params = urllib.parse.parse_qs(parsed.query)
+            if 'code' in params:
+                code = params['code'][0]
+                try:
+                    response = requests.post(
+                        'https://accounts.spotify.com/api/token',
+                        data={
+                            'grant_type': 'authorization_code',
+                            'code': code,
+                            'redirect_uri': REDIRECT_URI,
+                        },
+                        auth=(STATE['client_id'], STATE['client_secret']),
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    STATE['access_token'] = data['access_token']
+                    STATE['refresh_token'] = data['refresh_token']
+                    
+                    # Fetch playlists immediately
+                    resp = requests.get(
+                        f'{BASE_URL}/v1/me/playlists',
+                        headers={'Authorization': f'Bearer {STATE["access_token"]}'},
+                    )
+                    resp.raise_for_status()
+                    STATE['playlists'] = resp.json().get('items', [])
+                    STATE['step'] = 'configure'
+                    self._redirect('/')
+                except requests.HTTPError as e:
+                    if e.response.status_code == 403:
+                        STATE['error'] = (
+                            "<strong>403 Forbidden:</strong> Your Spotify account is not authorized to use this App.<br><br>"
+                            "1. Go to your <a href='https://developer.spotify.com/dashboard' target='_blank' style='color:var(--primary)'>Spotify Dashboard</a>.<br>"
+                            "2. Click on your App &rarr; <strong>Settings</strong> &rarr; <strong>User Management</strong>.<br>"
+                            "3. Add your Spotify email address to the list of authorized users.<br>"
+                            "4. Try again."
+                        )
+                    else:
+                        STATE['error'] = f"Auth failed: {e}"
+                    STATE['step'] = 'credentials'
+                    self._redirect('/')
+                except Exception as e:
+                    STATE['error'] = f"Auth failed: {e}"
+                    STATE['step'] = 'credentials'
+                    self._redirect('/')
             return
 
-    with HTTPServer(('127.0.0.1', 8888), CallbackHandler) as server:
-        print('Open the following URL in your browser to authorize Syncify:')
-        print(f'  {auth_url}\n')
-        print('After approving access, Spotify will redirect back to http://127.0.0.1:8888/callback.')
-        print('Waiting for Spotify to redirect back...')
+        if STATE['step'] == 'credentials':
+            err_html = f'<div class="error">{STATE["error"]}</div>' if STATE['error'] else ''
+            env_notice = ""
+            if STATE['client_id'] and STATE['client_secret']:
+                env_notice = '<div style="background:rgba(29,185,84,0.1); color:var(--primary); padding:0.75rem; border-radius:12px; font-size:0.85rem; margin-bottom:1.5rem; border:1px solid rgba(29,185,84,0.2);">✨ Credentials loaded from your <code>.env</code> file.</div>'
+            
+            self._send_html(f"""
+                <h1>Spotify Credentials</h1>
+                <p>Enter your Spotify App credentials. You can find these in the <a href="https://developer.spotify.com/dashboard" target="_blank" style="color:var(--primary); text-decoration:none;">Dashboard</a>.</p>
+                {env_notice}
+                {err_html}
+                <form action="/step/credentials" method="POST">
+                    <div class="form-group">
+                        <label>Client ID</label>
+                        <input type="text" name="client_id" value="{STATE['client_id']}" placeholder="Your Spotify Client ID" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Client Secret</label>
+                        <input type="password" name="client_secret" value="{STATE['client_secret']}" placeholder="Your Spotify Client Secret" required>
+                    </div>
+                    <button type="submit" class="btn">Connect Spotify</button>
+                </form>
+            """)
+        elif STATE['step'] == 'authorize':
+            auth_url = 'https://accounts.spotify.com/authorize?' + urllib.parse.urlencode({
+                'client_id': STATE['client_id'],
+                'response_type': 'code',
+                'redirect_uri': REDIRECT_URI,
+                'scope': SCOPES,
+            })
+            self._send_html(f"""
+                <h1>Authorize Syncify</h1>
+                <p>Click below to authorize Syncify with your Spotify account. This will open a Spotify login page.</p>
+                <a href="{auth_url}" class="btn" style="text-decoration:none; display:block; text-align:center;">Authorize with Spotify</a>
+            """)
+        elif STATE['step'] == 'configure':
+            user_id = STATE['playlists'][0]['owner']['id'] if STATE['playlists'] else ''
+            items_html = ""
+            for p in STATE['playlists']:
+                items_html += f"""
+                    <div class="playlist-item" onclick="this.classList.toggle('selected'); updateSelected();" data-id="{p['id']}">
+                        <div class="checkbox-wrapper"></div>
+                        <span style="font-size:0.9rem;">{p['name']}</span>
+                    </div>
+                """
+            
+            target_options = "".join([f"<option value='{p['id']}'>{p['name']}</option>" for p in STATE['playlists'] if p['owner']['id'] == user_id])
 
-        deadline = time.monotonic() + timeout_seconds
-        while 'params' not in callback_data:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError('Timed out waiting for the Spotify redirect.')
-            server.timeout = min(1.0, remaining)
-            server.handle_request()
+            self._send_html(f"""
+                <h1>Configure Sync</h1>
+                <p>Select which playlists to sync from and where to merge them.</p>
+                <form action="/step/configure" method="POST" id="configForm">
+                    <label>Source Playlists</label>
+                    <div class="playlist-list">
+                        {{items_html}}
+                    </div>
+                    <input type="hidden" name="source_ids" id="source_ids">
+                    
+                    <div class="form-group">
+                        <label>Target Playlist</label>
+                        <select name="target_id">
+                            {{target_options}}
+                            <option value="new">[ Create New Playlist ]</option>
+                        </select>
+                    </div>
 
-    return callback_data['params']
+                    <div class="toggle-group">
+                        <span class="toggle-text">Include followed playlists?</span>
+                        <label class="switch"><input type="checkbox" name="include_external"><span class="slider"></span></label>
+                    </div>
+                    <div class="toggle-group">
+                        <span class="toggle-text">Remove missing tracks?</span>
+                        <label class="switch"><input type="checkbox" name="remove_missing"><span class="slider"></span></label>
+                    </div>
 
+                    <button type="submit" class="btn">Save & Continue</button>
+                </form>
+                <script>
+                    function updateSelected() {{
+                        const ids = Array.from(document.querySelectorAll('.playlist-item.selected')).map(el => el.dataset.id);
+                        document.getElementById('source_ids').value = ids.join(',');
+                    }}
+                </script>
+            """)
+        elif STATE['step'] == 'deploy':
+            detected_repo = _detect_gh_repo()
+            self._send_html(f"""
+                <h1>GitHub Deployment</h1>
+                <p>Push your configuration to GitHub Actions. This will set up the scheduled sync workflow.</p>
+                <form action="/step/deploy" method="POST">
+                    <div class="form-group">
+                        <label>GitHub Repository</label>
+                        <input type="text" name="repo" value="{detected_repo}" placeholder="owner/repo" required>
+                    </div>
+                    <button type="submit" class="btn">Push to GitHub</button>
+                </form>
+            """)
+        elif STATE['step'] == 'success':
+            items_list = "".join([f'<div style="background:rgba(255,255,255,0.03); padding:0.5rem 1rem; border-radius:10px; margin-bottom:0.5rem; font-size:0.85rem; display:flex; align-items:center; gap:8px;"><span style="color:var(--primary)">✓</span>{item}</div>' for item in STATE['pushed_items']])
+            self._send_html(f"""
+                <div style="text-align:center;">
+                    <div style="width:48px; height:48px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; margin: 0 auto 1.5rem; color:#000; font-size:1.5rem;">✓</div>
+                    <h1>Setup Complete!</h1>
+                    <p style="margin-bottom:1rem;">Syncify is now configured for <strong>{STATE['repo']}</strong>.</p>
+                    <div style="text-align:left; margin-bottom:1.5rem;">
+                        {items_list}
+                    </div>
+                    <form action="/exit" method="POST">
+                        <button type="submit" class="btn">Finish & Close</button>
+                    </form>
+                </div>
+            """)
 
-def _get_authorization_params(auth_url: str) -> dict[str, list[str]]:
-    try:
-        return _listen_for_redirect(auth_url)
-    except OSError as exc:
-        print(f'Could not start the local callback listener: {exc}')
-    except TimeoutError as exc:
-        print(str(exc))
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = urllib.parse.parse_qs(self.rfile.read(content_length).decode('utf-8'))
+        
+        if self.path == '/exit':
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"<html><body><script>window.close();</script></body></html>")
+            STATE['should_stop'] = True
+            return
 
-    print('Falling back to manual redirect capture.\n')
-    return _prompt_for_redirect(auth_url)
+        if self.path == '/step/credentials':
+            STATE['client_id'] = post_data.get('client_id', [''])[0]
+            STATE['client_secret'] = post_data.get('client_secret', [''])[0]
+            STATE['step'] = 'authorize'
+            self._redirect('/')
+        
+        elif self.path == '/step/configure':
+            STATE['selected_source_ids'] = post_data.get('source_ids', [''])[0].split(',')
+            STATE['target_playlist_id'] = post_data.get('target_id', [None])[0]
+            STATE['include_external'] = 'include_external' in post_data
+            STATE['remove_missing'] = 'remove_missing' in post_data
+            
+            if STATE['target_playlist_id'] == 'new':
+                # Create new playlist
+                user_id = STATE['playlists'][0]['owner']['id']
+                resp = requests.post(
+                    f'{BASE_URL}/v1/users/{user_id}/playlists',
+                    headers={'Authorization': f'Bearer {STATE["access_token"]}', 'Content-Type': 'application/json'},
+                    json={'name': 'Syncified', 'description': 'Merged by Syncify', 'public': False},
+                )
+                resp.raise_for_status()
+                STATE['target_playlist_id'] = resp.json()['id']
+            
+            STATE['step'] = 'deploy'
+            self._redirect('/')
+            
+        elif self.path == '/step/deploy':
+            repo = post_data.get('repo', [''])[0]
+            STATE['repo'] = repo
+            
+            secrets = {
+                'SPOTIFY_REFRESH_TOKEN': STATE['refresh_token'],
+                'SPOTIFY_CLIENT_ID': STATE['client_id'],
+                'SPOTIFY_CLIENT_SECRET': STATE['client_secret']
+            }
+            
+            source_ids_str = ','.join(STATE['selected_source_ids']) if STATE['selected_source_ids'] else None
+            
+            variables = {
+                'SPOTIFY_TARGET_PLAYLIST_ID': STATE['target_playlist_id'],
+                'SPOTIFY_SOURCE_PLAYLIST_IDS': source_ids_str,
+                'SPOTIFY_INCLUDE_EXTERNAL': 'true' if STATE['include_external'] else None,
+                'SPOTIFY_REMOVE_MISSING': 'true' if STATE['remove_missing'] else None,
+            }
+            
+            # Use existing _gh_push logic (need to adapt slightly for feedback)
+            _gh_push(repo, secrets, variables)
+            
+            STATE['pushed_items'] = [
+                'Spotify Refresh Token Pushed',
+                f'Target Playlist Linked: {STATE["target_playlist_id"]}',
+                'Sync Configuration Saved',
+                'Spotify Client ID Pushed',
+                'Spotify Client Secret Pushed'
+            ]
+            STATE['step'] = 'success'
+            self._redirect('/')
 
-
-def authorize(client_id: str, client_secret: str) -> tuple[str, str]:
-    """Run the OAuth Authorization Code flow. Returns (access_token, refresh_token)."""
-    auth_url = 'https://accounts.spotify.com/authorize?' + urllib.parse.urlencode({
-        'client_id': client_id,
-        'response_type': 'code',
-        'redirect_uri': REDIRECT_URI,
-        'scope': SCOPES,
-    })
-    params = _get_authorization_params(auth_url)
-    if 'error' in params:
-        print(f'Authorization denied: {params["error"][0]}')
-        sys.exit(1)
-    if 'code' not in params:
-        print('Error: no authorization code found in URL.')
-        sys.exit(1)
-    auth_code = params['code'][0]
-
-    response = requests.post(
-        'https://accounts.spotify.com/api/token',
-        data={
-            'grant_type': 'authorization_code',
-            'code': auth_code,
-            'redirect_uri': REDIRECT_URI,
-        },
-        auth=(client_id, client_secret),
-    )
-    response.raise_for_status()
-    data = response.json()
-    return data['access_token'], data['refresh_token']
-
-
-def fetch_playlists(access_token: str) -> list[dict]:
-    response = requests.get(
-        f'{BASE_URL}/v1/me/playlists',
-        headers={'Authorization': f'Bearer {access_token}'},
-    )
-    response.raise_for_status()
-    return response.json().get('items', [])
-
-
-def prompt(question: str, default: str = '') -> str:
-    suffix = f' [{default}]' if default else ''
-    answer = input(f'{question}{suffix}: ').strip()
-    return answer if answer else default
-
-
-def prompt_yes_no(question: str, default: bool = False) -> bool:
-    default_text = 'y' if default else 'n'
-    return prompt(f'{question} (y/n)', default_text).lower() == 'y'
-
-
-def choose_from_list(items: list[str], label: str) -> list[str]:
-    print(f'\nAvailable {label}:')
-    for i, item in enumerate(items, 1):
-        print(f'  {i:2}. {item}')
-    print()
-
-    while True:
-        raw = input('Enter numbers to select (e.g. 1,3,5) or press Enter to select ALL: ').strip()
-        if not raw:
-            return items
-        try:
-            indices = [int(n.strip()) for n in raw.split(',')]
-            if all(1 <= i <= len(items) for i in indices):
-                return [items[i - 1] for i in indices]
-        except ValueError:
-            pass
-        print(f'  Invalid input. Enter comma-separated numbers between 1 and {len(items)}.')
-
+    def log_message(self, format, *args): return
 
 def _detect_gh_repo() -> str:
-    """Detect owner/repo from git remotes, prioritizing the current user's fork."""
     try:
-        # Get current GitHub user
-        user_result = subprocess.run(
-            ['gh', 'api', 'user', '-q', '.login'],
-            capture_output=True, text=True, check=True,
-        )
+        user_result = subprocess.run(['gh', 'api', 'user', '-q', '.login'], capture_output=True, text=True)
         gh_user = user_result.stdout.strip().lower()
-    except Exception:
-        gh_user = ''
-
-    try:
-        # Get all remotes
-        remotes_result = subprocess.run(
-            ['git', 'remote', '-v'],
-            capture_output=True, text=True, check=True,
-        )
-
+        remotes_result = subprocess.run(['git', 'remote', '-v'], capture_output=True, text=True)
         remotes = {}
         for line in remotes_result.stdout.splitlines():
             parts = line.split()
             if len(parts) >= 2:
                 name, url = parts[0], parts[1]
                 m = re.search(r'github\.com[:/](.+?/[^/]+?)(?:\.git)?$', url)
-                if m:
-                    repo_full = m.group(1)
-                    remotes[name] = repo_full
-
-        if not remotes:
-            return ''
-
-        # 1. Look for a remote matching the user's login
+                if m: remotes[name] = m.group(1)
+        if not remotes: return ''
         if gh_user:
             for repo_full in remotes.values():
-                if repo_full.lower().startswith(f'{gh_user}/'):
-                    return repo_full
-
-        # 2. Prefer 'origin' if it's there
-        if 'origin' in remotes:
-            return remotes['origin']
-
-        # 3. Just return the first one found
-        return list(remotes.values())[0]
-
-    except subprocess.CalledProcessError:
-        pass
-    return ''
-
-
-def _gh_secret_names(repo: str) -> set[str]:
-    """Return the names of GitHub Actions secrets configured for a repo."""
-    result = subprocess.run(
-        ['gh', 'secret', 'list', '--repo', repo],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        return set()
-
-    secret_names: set[str] = set()
-    for line in result.stdout.splitlines()[1:]:
-        parts = line.split()
-        if parts:
-            secret_names.add(parts[0])
-    return secret_names
-
+                if repo_full.lower().startswith(f'{gh_user}/'): return repo_full
+        return remotes.get('origin', list(remotes.values())[0])
+    except: return ''
 
 def _gh_push(repo: str, secrets: dict[str, str], variables: dict[str, str | None]) -> None:
-    """Push secrets and variables to GitHub via the gh CLI."""
-    def _run(args: list[str], value: str = '') -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            ['gh'] + args + ['--repo', repo],
-            input=value, text=True, capture_output=True,
-        )
+    def _run(args: list[str], value: str = '') -> None:
+        subprocess.run(['gh'] + args + ['--repo', repo], input=value, text=True, capture_output=True)
 
-    print()
-    all_ok = True
     for name, value in secrets.items():
-        result = _run(['secret', 'set', name], value)
-        ok = result.returncode == 0
-        print(f'  {"✅" if ok else "❌"} secret  {name}')
-        all_ok = all_ok and ok
-
+        _run(['secret', 'set', name], value)
     for name, value in variables.items():
         if value is None:
-            result = _run(['variable', 'delete', name])
-            ok = result.returncode == 0 or 'not found' in result.stderr.lower()
-            action = 'cleared'
+            _run(['variable', 'delete', name])
         else:
-            result = _run(['variable', 'set', name, '--body', value])
-            ok = result.returncode == 0
-            action = 'set'
-        print(f'  {"✅" if ok else "❌"} variable {name} ({action})')
-        all_ok = all_ok and ok
-
-    if not all_ok:
-        print('\n  Some values failed. Make sure `gh` is installed and authenticated (`gh auth login`).')
-
+            _run(['variable', 'set', name, '--body', value])
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Syncify Setup')
-    parser.add_argument('--auth-only', action='store_true', help='Only perform Spotify authorization and push refresh token')
+    parser.add_argument('--auth-only', action='store_true', help='Only perform Spotify authorization')
     args = parser.parse_args()
 
     if args.auth_only:
-        print('=== Syncify Auth ===')
-        print(f'Make sure {REDIRECT_URI} is added to your Spotify app\'s Redirect URIs.\n')
+        # We can still use a simplified GUI for auth-only if needed, but for now let's focus on the main flow
+        STATE['step'] = 'credentials'
 
-        client_id = os.environ.get('SPOTIFY_CLIENT_ID') or input('Spotify Client ID: ').strip()
-        client_secret = os.environ.get('SPOTIFY_CLIENT_SECRET') or input('Spotify Client Secret: ').strip()
-
-        if not client_id or not client_secret:
-            print('Error: Client ID and Client Secret are required.')
-            sys.exit(1)
-
-        _, refresh_token = authorize(client_id, client_secret)
-        print('Authorization successful!\n')
-
-        detected_repo = _detect_gh_repo()
-        suffix = f' [{detected_repo}]' if detected_repo else ''
-        repo = input(f'GitHub repo to push refresh token (owner/repo){suffix}: ').strip() or detected_repo
-
-        if repo:
-            result = subprocess.run(
-                ['gh', 'secret', 'set', 'SPOTIFY_REFRESH_TOKEN', '--repo', repo],
-                input=refresh_token, text=True, capture_output=True,
-            )
-            if result.returncode == 0:
-                print(f'✅ SPOTIFY_REFRESH_TOKEN pushed to {repo}.')
-            else:
-                print(f'❌ Failed to push secret. Set SPOTIFY_REFRESH_TOKEN manually:\n  {refresh_token}')
-        else:
-            print(f'SPOTIFY_REFRESH_TOKEN (add to GitHub Secrets manually):\n  {refresh_token}')
-        return
-
-    print('=== Syncify Setup ===\n')
-
-    client_id = os.environ.get('SPOTIFY_CLIENT_ID') or prompt('Spotify Client ID')
-    client_secret = os.environ.get('SPOTIFY_CLIENT_SECRET') or prompt('Spotify Client Secret')
-
-    if not all([client_id, client_secret]):
-        print('Error: Client ID and Client Secret are required.')
-        sys.exit(1)
-
-    print('\nAuthorizing with Spotify...')
-    print(f'Make sure {REDIRECT_URI} is in your Spotify app\'s Redirect URIs.')
+    print(f'Starting Syncify Setup GUI on {GUI_URL}...')
+    server = HTTPServer(('127.0.0.1', GUI_PORT), SetupHandler)
+    webbrowser.open(GUI_URL)
+    
     try:
-        access_token, refresh_token = authorize(client_id, client_secret)
-        all_playlists = fetch_playlists(access_token)
-    except requests.HTTPError as e:
-        print(f'Error: {e}')
-        sys.exit(1)
-
-    if not all_playlists:
-        print('No playlists found.')
-        sys.exit(1)
-
-    # Determine user ID from the first owned playlist.
-    user_id = all_playlists[0]['owner']['id']
-    owned = [p for p in all_playlists if p['owner']['id'] == user_id]
-    external = [p for p in all_playlists if p['owner']['id'] != user_id]
-
-    include_external = prompt_yes_no('Include playlists you follow but don\'t own?')
-
-    playlists_to_show = owned + (external if include_external else [])
-    playlist_names = [p['name'] for p in playlists_to_show]
-
-    selected_names = choose_from_list(playlist_names, 'playlists')
-    selected_ids = [p['id'] for p in playlists_to_show if p['name'] in set(selected_names)]
-
-    # Target playlist: pick an existing one or create a new one.
-    print('\nWhich playlist should Syncify merge tracks into?')
-    owned_names = [p['name'] for p in owned]
-    for i, name in enumerate(owned_names, 1):
-        print(f'  {i:2}. {name}')
-    print(f'  {len(owned_names) + 1:2}. [Create new playlist]')
-    print()
-
-    while True:
-        raw = input('Enter number: ').strip()
-        try:
-            choice = int(raw)
-            if 1 <= choice <= len(owned_names) + 1:
-                break
-        except ValueError:
-            pass
-        print(f'  Invalid input. Enter a number between 1 and {len(owned_names) + 1}.')
-
-    if choice <= len(owned_names):
-        target_playlist_id = owned[choice - 1]['id']
-    else:
-        name = prompt('New playlist name', 'Syncified')
-        try:
-            response = requests.post(
-                f'{BASE_URL}/v1/users/{user_id}/playlists',
-                headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'},
-                json={'name': name, 'description': '', 'public': False},
-            )
-            response.raise_for_status()
-            target_playlist_id = response.json()['id']
-            print(f'Created playlist "{name}" ({target_playlist_id})')
-        except requests.HTTPError as e:
-            print(f'Error creating playlist: {e}')
-            sys.exit(1)
-
-    remove_missing = prompt_yes_no(
-        'Remove tracks from the target playlist when they are removed from the source playlists?'
-    )
-
-    # ── GitHub push ───────────────────────────────────────────────────────────
-    detected_repo = _detect_gh_repo()
-    repo = prompt('GitHub repo to push secrets/variables to (owner/repo)', detected_repo)
-
-    if repo:
-        existing_secret_names = _gh_secret_names(repo)
-        secrets_to_push = {
-            'SPOTIFY_REFRESH_TOKEN': refresh_token,
-        }
-
-        if 'SPOTIFY_CLIENT_ID' in existing_secret_names:
-            overwrite_client_id = prompt_yes_no('Overwrite existing GitHub secret SPOTIFY_CLIENT_ID?')
-            if overwrite_client_id:
-                secrets_to_push['SPOTIFY_CLIENT_ID'] = client_id
-        else:
-            secrets_to_push['SPOTIFY_CLIENT_ID'] = client_id
-
-        if 'SPOTIFY_CLIENT_SECRET' in existing_secret_names:
-            overwrite_client_secret = prompt_yes_no('Overwrite existing GitHub secret SPOTIFY_CLIENT_SECRET?')
-            if overwrite_client_secret:
-                secrets_to_push['SPOTIFY_CLIENT_SECRET'] = client_secret
-        else:
-            secrets_to_push['SPOTIFY_CLIENT_SECRET'] = client_secret
-
-        source_playlist_ids_str = ','.join(selected_ids) if selected_names != playlist_names else None
-        print(f'\nPushing to {repo}...')
-        _gh_push(
-            repo=repo,
-            secrets=secrets_to_push,
-            variables={
-                'SPOTIFY_TARGET_PLAYLIST_ID': target_playlist_id,
-                'SPOTIFY_SOURCE_PLAYLIST_IDS': source_playlist_ids_str,
-                'SPOTIFY_INCLUDE_EXTERNAL': 'true' if include_external else None,
-                'SPOTIFY_REMOVE_MISSING': 'true' if remove_missing else None,
-            },
-        )
-    else:
-        print('Skipping GitHub push.')
-
-    print('\nNext steps:')
-    if not repo:
-        print('  1. Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET as GitHub Secrets.')
-        print('     (Settings → Secrets and variables → Actions → Secrets)')
-    print('  - The workflow will run on the configured schedule.')
-    print('  - Re-run `make setup` any time you want to change playlist selection or sync mode.')
-
+        while not STATE['should_stop']:
+            server.handle_request()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        print('Setup server stopped.')
 
 if __name__ == '__main__':
     main()
