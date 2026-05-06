@@ -32,7 +32,7 @@ make init
 make setup
 ```
 
-`make setup` includes authorization as part of the wizard. Run `make auth` separately only if you need to re-authorize later (e.g. your refresh token was revoked) without repeating the full setup.
+`make setup` includes authorization as part of the wizard. Run `make auth` separately only if you need to re-authorize later (e.g. your refresh token was revoked) without repeating the full setup. `make auth` uses the same `setup.py` script with an internal flag.
 
 That's it. GitHub Actions will sync your playlists daily at midnight UTC.
 

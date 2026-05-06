@@ -10,7 +10,7 @@ setup:
 
 # Obtain a Spotify refresh token and push to GitHub
 auth:
-	uv run python auth.py
+	uv run python setup.py --auth-only
 
 # Trigger a sync via the GitHub Actions workflow
 run:

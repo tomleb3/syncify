@@ -13,8 +13,7 @@ Syncify merges tracks from multiple Spotify playlists into a single target playl
 ## Project structure
 
 - `syncify.py` - Core sync logic and CLI entry point (`make run`)
-- `auth.py` - One-time Spotify OAuth Authorization Code flow (`make auth`)
-- `setup.py` - Interactive setup wizard, pushes secrets/variables to GitHub (`make setup`)
+- `setup.py` - Interactive setup wizard, pushes secrets/variables to GitHub (`make setup`). Also handles re-authorization (`make auth`).
 - `.github/workflows/syncify.yml` - Scheduled GitHub Actions workflow
 - `Makefile` - Common tasks: `init`, `setup`, `auth`, `run`, `clean`
 
