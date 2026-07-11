@@ -376,7 +376,7 @@ def _run_full_setup(client_id: str, client_secret: str, access_token: str, refre
         print('     (Settings → Secrets and variables → Actions → Secrets)')
     print('  - Manual runs are ready from the Actions tab or `make run`.')
     print('  - Add a `schedule:` trigger only in the repo that should publish run history.')
-    print('  - Use a separate private runtime repo if you want scheduled runs and logs to stay off the public repo.')
+    print('  - Use the private repo created from this template if you want scheduled runs and logs to stay off the source repo.')
     print('  - Re-run `make setup` any time you want to change playlist selection or sync mode.')
 
 
