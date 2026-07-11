@@ -42,10 +42,20 @@ If the repo running the workflow is public, its Actions history is public too.
 
 Repos created from a template are standalone, so GitHub's **Sync fork** button does not apply.
 
-To pull future changes from your actual template/source repo, add it as a remote and merge from it:
+On the first sync from your actual template/source repo, Git will likely report unrelated histories. That is expected for repos created from a template.
+
+First sync:
 
 ```bash
 git remote add template https://github.com/tomleb3/syncify.git
+git fetch template
+git merge template/master --allow-unrelated-histories
+git push origin HEAD
+```
+
+Later syncs:
+
+```bash
 git fetch template
 git merge template/master
 git push origin HEAD

@@ -3,8 +3,8 @@ name: Syncify
 on:
   # The public upstream stays manual-only so it does not publish anyone's sync history.
   # Uncomment this block in your own runtime repo if you want automated runs.
-  # schedule:
-  #   - cron: '0 0 * * *'
+  schedule:
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 jobs:
