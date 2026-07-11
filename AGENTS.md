@@ -13,25 +13,24 @@ Syncify merges tracks from multiple Spotify playlists into a single target playl
 ## Project structure
 
 - `syncify.py` - Core sync logic and CLI entry point (`make run`)
-- `auth.py` - One-time Spotify OAuth Authorization Code flow (`make auth`)
-- `setup.py` - Interactive setup wizard, pushes secrets/variables to GitHub (`make setup`)
+- `setup.py` - Interactive setup and OAuth wizard, pushes secrets/variables to GitHub (`make setup`, `make auth`)
 - `.github/workflows/syncify.yml` - Scheduled GitHub Actions workflow
 - `Makefile` - Common tasks: `init`, `setup`, `auth`, `run`, `clean`
 
 ## Common commands
 
 - `make init` - Create venv and install locked dependencies
-- `make auth` - Run OAuth flow to obtain a Spotify refresh token and push to GitHub
+- `make auth` - Re-run setup in auth-only mode to refresh the Spotify token and push it to GitHub
 - `make setup` - Interactive setup (authorize, pick playlists, choose sync mode, push to GitHub)
 - `make run` - Trigger a sync via the GitHub Actions workflow
 
 All secrets and variables are stored exclusively in GitHub Secrets/Variables.
 `make run` dispatches the workflow remotely via `gh workflow run`.
-`make setup` and `make auth` prompt for credentials interactively and push them to GitHub via the `gh` CLI.
+`make setup` and `make auth` both run through `setup.py` and push to GitHub via the `gh` CLI.
 
 ## Authentication
 
-Syncify uses the Spotify OAuth Authorization Code flow (not Client Credentials). The `auth.py` script handles the one-time browser-based authorization and produces a refresh token. On each run, `syncify.py` exchanges the refresh token for a fresh access token.
+Syncify uses the Spotify OAuth Authorization Code flow (not Client Credentials). `setup.py` handles browser-based authorization and produces a refresh token. On each run, `syncify.py` exchanges the refresh token for a fresh access token.
 
 Required scopes: `playlist-read-private`, `playlist-modify-private`.
 

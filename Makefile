@@ -8,9 +8,9 @@ init:
 setup:
 	uv run python setup.py
 
-# Obtain a Spotify refresh token and push to GitHub
+# Refresh the Spotify token and push it to GitHub using the setup script
 auth:
-	uv run python auth.py
+	uv run python setup.py --auth-only
 
 # Trigger a sync via the GitHub Actions workflow
 # Optionally set SYNCIFY_GH_REPO=owner/repo to target a different runtime repo.

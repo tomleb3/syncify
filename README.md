@@ -22,6 +22,8 @@ make setup
 
 `make setup` authorizes Spotify, lets you choose source and target playlists, and pushes the required GitHub Secrets and Variables.
 
+If you only need to refresh the Spotify authorization later, run `make auth`. It uses the same setup script and only updates `SPOTIFY_REFRESH_TOKEN`.
+
 ## Schedule
 
 If you want automatic syncs, uncomment the `schedule` block in `.github/workflows/syncify.yml` in your runtime repo and set your cron.
