@@ -1,7 +1,7 @@
 """
 Interactive setup for Syncify.
 Fetches your Spotify playlists, lets you pick which ones to sync,
-and pushes everything to GitHub Secrets/Variables.
+and pushes everything to GitHub Secrets/Variables in the repo you choose.
 Requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET in the environment.
 """
 
@@ -239,7 +239,9 @@ def main() -> None:
     if not repo:
         print('  1. Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET as GitHub Secrets.')
         print('     (Settings → Secrets and variables → Actions → Secrets)')
-    print('  - The workflow will run on the configured schedule.')
+    print('  - Manual runs are ready from the Actions tab or `make run`.')
+    print('  - Add a `schedule:` trigger only in the repo that should publish run history.')
+    print('  - Use a separate private runtime repo if you want scheduled runs and logs to stay off the public repo.')
     print('  - Re-run `make setup` any time you want to change playlist selection or sync mode.')
 
 

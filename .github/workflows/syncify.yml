@@ -1,12 +1,10 @@
 name: Syncify
 
 on:
-  # Run on a schedule - adjust the cron expression to your liking.
-  # Default: every day at midnight UTC. Use https://crontab.guru to build expressions.
-  schedule:
-    - cron: '0 0 * * *'
-
-  # Allow triggering a run manually from the Actions tab.
+  # The public upstream stays manual-only so it does not publish anyone's sync history.
+  # Uncomment this block in your own runtime repo if you want automated runs.
+  # schedule:
+  #   - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:

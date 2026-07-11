@@ -13,9 +13,10 @@ auth:
 	uv run python auth.py
 
 # Trigger a sync via the GitHub Actions workflow
+# Optionally set SYNCIFY_GH_REPO=owner/repo to target a different runtime repo.
 run:
-	gh workflow run syncify.yml
-	@echo 'Workflow dispatched. View logs: gh run watch'
+	gh workflow run syncify.yml $(if $(SYNCIFY_GH_REPO),--repo $(SYNCIFY_GH_REPO))
+	@echo 'Workflow dispatched. View logs: gh run watch $(if $(SYNCIFY_GH_REPO),--repo $(SYNCIFY_GH_REPO))'
 
 # Run syncify.py locally
 run-local:
